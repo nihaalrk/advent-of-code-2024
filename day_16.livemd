@@ -1,0 +1,391 @@
+# Day 16
+
+## Part 1
+
+```elixir
+defmodule MazePathFinder do
+  def run_a_star(input_str, newline \\ "\n", max_iter \\ nil) do
+    {maze_map, start_loc, end_loc} = read_input(input_str, newline)
+    recur_a_star(maze_map, end_loc, %{{start_loc, :east} => 0}, %{}, max_iter)
+  end
+
+  # nodes_to_explore and visited_nodes are both maps of form
+  # {location, direction} => score
+  # where score is just the score so far (heuristic is not stored there)
+  def recur_a_star(maze_map, dest_loc, nodes_to_explore, visited_nodes \\ %{}, max_iter \\ nil)
+  def recur_a_star(_, _, _, _, 0), do: :ok 
+  def recur_a_star(maze_map, dest_loc, nodes_to_explore, visited_nodes, max_iter) do
+    {{{node_loc, node_dir}, node_score}, rest_to_explore} =
+      find_best_node(nodes_to_explore, dest_loc)
+    cond do
+      node_loc == dest_loc -> node_score
+
+      true ->
+        new_nodes_to_explore =
+          neighbors(maze_map, {{node_loc, node_dir}, node_score})
+          |> Enum.reduce(rest_to_explore, fn {neighbor_node, neighbor_score}, acc_explore ->
+            cond do
+              visited_nodes[neighbor_node] && visited_nodes[neighbor_node] < neighbor_score ->
+                acc_explore # skip
+
+              rest_to_explore[neighbor_node] && rest_to_explore[neighbor_node] < neighbor_score ->
+                acc_explore # skip
+
+              true ->
+                acc_explore |> Map.put(neighbor_node, neighbor_score)
+            end
+          end)
+        new_visited_nodes = visited_nodes |> Map.put({node_loc, node_dir}, node_score)
+        if max_iter do
+          IO.inspect(max_iter)
+          IO.inspect(new_nodes_to_explore)
+          IO.inspect(new_visited_nodes)
+        end
+        recur_a_star(maze_map, dest_loc, new_nodes_to_explore, new_visited_nodes, (if max_iter, do: max_iter-1))
+    end
+  end
+
+  def find_best_node(nodes, dest) do
+    [first_node | rest_nodes] = Map.to_list(nodes)
+    best_node =
+      Enum.reduce(rest_nodes, first_node, fn {curr_node, curr_v}=curr, {best_node, best_v}=best ->
+        cond do
+          curr_v + heuristic(curr_node, dest) < best_v + heuristic(best_node, dest) -> curr
+          true -> best
+        end
+      end)
+    {best_node_key, _} = best_node
+    new_nodes = nodes |> Map.delete(best_node_key)
+    {best_node, new_nodes}
+  end
+  
+  def neighbors(maze_map, {{{curr_r, curr_c}, curr_dir}, curr_score}) do
+    [
+      {{{curr_r-1, curr_c}, :north}, curr_score + 1 + rotation_score(curr_dir, :north)},
+      {{{curr_r+1, curr_c}, :south}, curr_score + 1 + rotation_score(curr_dir, :south)},
+      {{{curr_r, curr_c-1}, :west}, curr_score + 1 + rotation_score(curr_dir, :west)},
+      {{{curr_r, curr_c+1}, :east}, curr_score + 1 + rotation_score(curr_dir, :east)}
+    ]
+    |> Enum.filter(fn {{loc, _dir}, _score} -> maze_map[loc] != "#" end)
+  end
+
+  def rotation_score(dir1, dir2) when dir1 == dir2, do: 0
+  def rotation_score(:north, :south), do: 2000
+  def rotation_score(:south, :north), do: 2000
+  def rotation_score(:east, :west), do: 2000
+  def rotation_score(:west, :east), do: 2000
+  def rotation_score(_dir1, _dir2), do: 1000
+  
+  def heuristic({{curr_r, curr_c}, direction}, {dest_r, dest_c}) do
+    num_rotations = case direction do
+      :north -> 1
+      :east -> 1
+      :west -> 2
+      :south -> 2
+    end
+    num_rotations * 1000 + abs(dest_r - curr_r) + abs(dest_c - curr_c)
+  end
+
+  def read_input(input_str, newline) do
+    input_str
+    |> String.split(newline, trim: true)
+    |> Enum.map(&String.graphemes/1)
+    |> read_maze
+  end
+
+  # returns {maze_map, start_location, end_location}
+  def read_maze(maze_list) do
+    maze_list |> Enum.with_index |> Enum.reduce({%{}, nil, nil}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, {acc_map, start_loc, end_loc} ->
+        {Map.put(acc_map, {r, c}, value),
+         (if value == "S", do: {r, c}) || start_loc,
+         (if value == "E", do: {r, c}) || end_loc}
+      end)
+    end)
+  end
+end
+```
+
+```elixir
+"###############
+#.......#....E#
+#.#.###.#.###.#
+#.....#.#...#.#
+#.###.#####.#.#
+#.#.#.......#.#
+#.#.#####.###.#
+#...........#.#
+###.#.#####.#.#
+#...#.....#.#.#
+#.#.#.###.#.#.#
+#.....#...#.#.#
+#.###.#.#.#.#.#
+#S..#.....#...#
+###############"
+|> MazePathFinder.run_a_star("\r\n")
+```
+
+```elixir
+"#################
+#...#...#...#..E#
+#.#.#.#.#.#.#.#.#
+#.#.#.#...#...#.#
+#.#.#.#.###.#.#.#
+#...#.#.#.....#.#
+#.#.#.#.#.#####.#
+#.#...#.#.#.....#
+#.#.#####.#.###.#
+#.#.#.......#...#
+#.#.###.#####.###
+#.#.#...#.....#.#
+#.#.#.#####.###.#
+#.#.#.........#.#
+#.#.#.#########.#
+#S#.............#
+#################"
+|> MazePathFinder.run_a_star("\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_16_maze.txt")
+|> MazePathFinder.run_a_star
+```
+
+## Part 2
+
+```elixir
+defmodule MazePathFinderV2 do
+  def run_a_star(input_str, newline \\ "\n") do
+    {maze_map, start_loc, end_loc} = read_input(input_str, newline)
+    init_caches()
+    start_node = {start_loc, :east}
+    :ets.insert(:explore_cache, {start_node, {0, MapSet.new}})
+    recur_a_star(maze_map, end_loc, MapSet.new([start_node]))
+  end
+
+  def recur_a_star(maze_map, dest_loc, nodes_to_explore) do
+    cond do
+      MapSet.size(nodes_to_explore) == 0 ->
+        {_, dest_c} = dest_loc
+        display_route(maze_map, dest_c+1, dest_c+1)
+      
+      true ->
+        {{node_loc, node_dir} = node, rest_to_explore} = find_best_node(nodes_to_explore, dest_loc)
+        
+        cond do
+          node_loc == dest_loc ->
+            add_to_finished_cache({node_loc, node_dir})
+            :ets.delete(:explore_cache, node)
+            recur_a_star(maze_map, dest_loc, rest_to_explore)
+    
+          true ->
+            [{_key, {prev_score, prev_nodes}}] = :ets.lookup(:explore_cache, node)
+            node_set = MapSet.put(prev_nodes, node_loc)
+            
+            new_nodes_to_explore =
+              neighbors(maze_map, node)
+              |> Enum.reduce(rest_to_explore, fn {neighbor_node, neighbor_score}, acc_explore ->
+                cond do
+                  skip_in_visited_cache(neighbor_node, neighbor_score) ->
+                    acc_explore # skip
+    
+                  skip_in_explore_cache(neighbor_node, neighbor_score, node_set) ->
+                    acc_explore # skip
+    
+                  true ->
+                    :ets.insert(:explore_cache, {neighbor_node, {neighbor_score, node_set}})
+                    MapSet.put(acc_explore, neighbor_node)
+                end
+              end)
+            
+            :ets.insert(:visited_cache, {node, {prev_score, prev_nodes}})
+            :ets.delete(:explore_cache, node)
+            recur_a_star(maze_map, dest_loc, new_nodes_to_explore)
+        end 
+    end
+  end
+
+  def find_best_node(nodes, dest) do
+    [first_node | rest_nodes] = MapSet.to_list(nodes)
+    best_node =
+      Enum.reduce(rest_nodes, first_node, fn curr_node, best_node ->
+        [{_key, {curr_v, _}}] = :ets.lookup(:explore_cache, curr_node)
+        [{_key, {best_v, _}}] = :ets.lookup(:explore_cache, best_node)
+        cond do
+          curr_v + heuristic(curr_node, dest) < best_v + heuristic(best_node, dest) -> curr_node
+          true -> best_node
+        end
+      end)
+    {best_node, MapSet.delete(nodes, best_node)}
+  end
+  
+  def neighbors(maze_map, {{curr_r, curr_c}, curr_dir} = curr_node) do
+    [{_key, {curr_score, _}}] = :ets.lookup(:explore_cache, curr_node)
+    [
+      {{{curr_r-1, curr_c}, :north}, curr_score + 1 + rotation_score(curr_dir, :north)},
+      {{{curr_r+1, curr_c}, :south}, curr_score + 1 + rotation_score(curr_dir, :south)},
+      {{{curr_r, curr_c-1}, :west}, curr_score + 1 + rotation_score(curr_dir, :west)},
+      {{{curr_r, curr_c+1}, :east}, curr_score + 1 + rotation_score(curr_dir, :east)}
+    ]
+    |> Enum.filter(fn {{loc, dir}, _score} ->
+      # it doesn't ever make sense to go back to the spot you came from
+      dir != opposite_direction(curr_dir) && maze_map[loc] != "#"
+    end)
+  end
+
+  def rotation_score(dir1, dir2) when dir1 == dir2, do: 0
+  def rotation_score(:north, :south), do: 2000
+  def rotation_score(:south, :north), do: 2000
+  def rotation_score(:east, :west), do: 2000
+  def rotation_score(:west, :east), do: 2000
+  def rotation_score(_dir1, _dir2), do: 1000
+
+  def opposite_direction(:north), do: :south
+  def opposite_direction(:south), do: :north
+  def opposite_direction(:east), do: :west
+  def opposite_direction(:west), do: :east
+  
+  def heuristic({{curr_r, curr_c}, direction}, {dest_r, dest_c}) do
+    num_rotations = case direction do
+      :north -> 1
+      :east -> 1
+      :west -> 2
+      :south -> 2
+    end
+    num_rotations * 1000 + abs(dest_r - curr_r) + abs(dest_c - curr_c)
+  end
+
+  def skip_in_visited_cache(node, score) do
+    case :ets.lookup(:visited_cache, node) do
+      [{_key, {cache_score, _}}] -> cache_score < score
+      [] -> false
+    end
+  end
+    
+  def skip_in_explore_cache(node, score, node_set) do
+    case :ets.lookup(:explore_cache, node) do
+      [{_key, {cache_score, cache_set}}] ->
+        cond do
+          cache_score == score ->
+            new_node_set = MapSet.union(cache_set, node_set)
+            :ets.insert(:explore_cache, {node, {score, new_node_set}})
+            true
+
+          true -> cache_score < score
+        end
+      [] -> false
+    end
+  end
+  
+  def add_to_finished_cache(node) do
+    [{_key, {node_score, prev_nodes}}] = :ets.lookup(:explore_cache, node)
+    node_set = MapSet.put(prev_nodes, node)
+    
+    case :ets.lookup(:finished_cache, node_score) do
+      [{_key, existing_node_set}] ->
+        all_nodes_set = MapSet.union(existing_node_set, node_set)
+        :ets.insert(:finished_cache, {node_score, all_nodes_set})
+      [] -> :ets.insert(:finished_cache, {node_score, node_set})
+    end
+  end
+
+  def read_input(input_str, newline) do
+    input_str
+    |> String.split(newline, trim: true)
+    |> Enum.map(&String.graphemes/1)
+    |> read_maze
+  end
+
+  # returns {maze_map, start_location, end_location}
+  def read_maze(maze_list) do
+    maze_list |> Enum.with_index |> Enum.reduce({%{}, nil, nil}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, {acc_map, start_loc, end_loc} ->
+        {Map.put(acc_map, {r, c}, value),
+         (if value == "S", do: {r, c}) || start_loc,
+         (if value == "E", do: {r, c}) || end_loc}
+      end)
+    end)
+  end
+
+  def display_route(maze_map, max_r, max_c) do
+    key = :ets.first(:finished_cache)
+    [{score, set}] = :ets.lookup(:finished_cache, key)
+
+    0..(max_r) |> Enum.each(fn r ->
+      0..(max_c) |> Enum.reduce("", fn c, acc_str ->
+        cond do
+          MapSet.member?(set, {r, c}) -> acc_str <> "O"
+          true -> acc_str <> "#{maze_map[{r, c}]}"
+        end
+      end) |> IO.inspect(charlists: :as_lists)
+    end)
+
+    {score, MapSet.size(set)}
+  end
+
+  # explore_cache: {location, direction} => {score, set of nodes}
+  # visited_cache: {location, direction} => {score, set of nodes}
+  # score is just the score so far (heuristic is not stored there)
+  # finished_cache: total_score => set of nodes
+  def init_caches do
+    if :ets.whereis(:explore_cache) != :undefined do
+      :ets.delete(:explore_cache)
+    end
+    if :ets.whereis(:visited_cache) != :undefined do
+      :ets.delete(:visited_cache)
+    end
+    if :ets.whereis(:finished_cache) != :undefined do
+      :ets.delete(:finished_cache)
+    end
+
+    :ets.new(:explore_cache, [:set, :public, :named_table])
+    :ets.new(:visited_cache, [:set, :public, :named_table])
+    :ets.new(:finished_cache, [:ordered_set, :public, :named_table])
+  end
+end
+```
+
+```elixir
+"###############
+#.......#....E#
+#.#.###.#.###.#
+#.....#.#...#.#
+#.###.#####.#.#
+#.#.#.......#.#
+#.#.#####.###.#
+#...........#.#
+###.#.#####.#.#
+#...#.....#.#.#
+#.#.#.###.#.#.#
+#.....#...#.#.#
+#.###.#.#.#.#.#
+#S..#.....#...#
+###############"
+|> MazePathFinderV2.run_a_star("\r\n")
+```
+
+```elixir
+"#################
+#...#...#...#..E#
+#.#.#.#.#.#.#.#.#
+#.#.#.#...#...#.#
+#.#.#.#.###.#.#.#
+#...#.#.#.....#.#
+#.#.#.#.#.#####.#
+#.#...#.#.#.....#
+#.#.#####.#.###.#
+#.#.#.......#...#
+#.#.###.#####.###
+#.#.#...#.....#.#
+#.#.#.#####.###.#
+#.#.#.........#.#
+#.#.#.#########.#
+#S#.............#
+#################"
+|> MazePathFinderV2.run_a_star("\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_16_maze.txt")
+|> MazePathFinderV2.run_a_star
+```

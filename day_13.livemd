@@ -1,0 +1,139 @@
+# Day 13
+
+## Part 1
+
+```elixir
+defmodule ClawMachine do
+  def run_all(file) do
+    read_input(file)
+    |> Enum.reduce(0, fn {a, b, prize}, acc ->
+      find_best_option(a, b, prize) + acc
+    end)
+  end
+  
+  def find_best_option({a_x, a_y}, {b_x, b_y}, {prize_x, prize_y}) do
+    0..100
+    |> Enum.map(fn a_presses ->
+      target_x = prize_x - (a_x * a_presses)
+      target_y = prize_y - (a_y * a_presses)
+      case rem(target_x, b_x) do
+         0 ->
+          b_presses = trunc(target_x / b_x)
+          case b_presses * b_y == target_y do
+            true -> a_presses * 3 + b_presses
+            false -> nil
+          end
+        _ -> nil
+      end
+    end)
+    |> Enum.filter(&(&1))
+    |> Enum.sort
+    |> Enum.at(0) || 0
+  end
+
+  def read_input(file) do
+    File.read!(file)
+    |> String.split("\n\n")
+    |> Enum.map(fn data ->
+      [a_str, b_str, prize_str] = String.split(data, "\n", trim: true)
+      
+      [a_x_str, a_y_str] = String.split(a_str, ",")
+      a_x = a_x_str |> String.replace("Button A: X+", "") |> String.to_integer
+      a_y = a_y_str |> String.replace(" Y+", "") |> String.to_integer
+
+      [b_x_str, b_y_str] = String.split(b_str, ",")
+      b_x = b_x_str |> String.replace("Button B: X+", "") |> String.to_integer
+      b_y = b_y_str |> String.replace(" Y+", "") |> String.to_integer
+
+      [prize_x_str, prize_y_str] = String.split(prize_str, ",")
+      prize_x = prize_x_str |> String.replace("Prize: X=", "") |> String.to_integer
+      prize_y = prize_y_str |> String.replace(" Y=", "") |> String.to_integer
+
+      {{a_x, a_y}, {b_x, b_y}, {prize_x, prize_y}}
+    end)
+  end
+end
+```
+
+```elixir
+ClawMachine.find_best_option({94, 34}, {22, 67}, {8400, 5400})
+```
+
+```elixir
+ClawMachine.find_best_option({26, 66}, {67, 21}, {12748, 12176})
+```
+
+```elixir
+ClawMachine.find_best_option({17, 86}, {84, 37}, {7870, 6450})
+```
+
+```elixir
+ClawMachine.find_best_option({69, 23}, {27, 71}, {18641, 10729})
+```
+
+```elixir
+ClawMachine.run_all("c:/Users/slims/Downloads/day_13_claw.txt")
+```
+
+## Part 2
+
+```elixir
+defmodule ClawMachineV2 do
+  def run_all(file) do
+    read_input(file)
+    |> Enum.reduce(0, fn {{a_x, a_y} = a, {b_x, b_y} = b, {prize_x, prize_y} = prize}, acc ->
+      {num_a, num_b} = calculate_num_presses(a, b, prize)
+      x = (round(num_a) * a_x) + (round(num_b) * b_x) == prize_x
+      y = (round(num_a) * a_y) + (round(num_b) * b_y) == prize_y
+      cond do
+        x && y -> (num_a * 3 + num_b) + acc
+        true -> acc
+      end
+    end)
+  end
+
+  def read_input(file) do
+    File.read!(file)
+    |> String.split("\n\n")
+    |> Enum.map(fn data ->
+      [a_str, b_str, prize_str] = String.split(data, "\n", trim: true)
+      
+      [a_x_str, a_y_str] = String.split(a_str, ",")
+      a_x = a_x_str |> String.replace("Button A: X+", "") |> String.to_integer
+      a_y = a_y_str |> String.replace(" Y+", "") |> String.to_integer
+
+      [b_x_str, b_y_str] = String.split(b_str, ",")
+      b_x = b_x_str |> String.replace("Button B: X+", "") |> String.to_integer
+      b_y = b_y_str |> String.replace(" Y+", "") |> String.to_integer
+
+      [prize_x_str, prize_y_str] = String.split(prize_str, ",")
+      prize_x = (prize_x_str |> String.replace("Prize: X=", "") |> String.to_integer) + 10000000000000
+      prize_y = (prize_y_str |> String.replace(" Y=", "") |> String.to_integer) + 10000000000000
+
+      {{a_x, a_y}, {b_x, b_y}, {prize_x, prize_y}}
+    end)
+  end
+
+  def calculate_num_presses({a_x, a_y}, {b_x, b_y}, {prize_x, prize_y}) do
+    # 26a + 67b = 10000000012748
+    # a = (10000000012748/26) - (67/26)b
+    # 66a + 21b = 10000000012176
+    # a = (10000000012176 / 66) - (21/66)b
+    # (10000000012748/26) - (67/26)b = (10000000012176 / 66) - (21/66)b
+    # (10000000012748/26) - (10000000012176 / 66) = (67/26)b - (21/66)b
+    # b = ((10000000012748/26) - (10000000012176 / 66)) / ((67/26) - (21/66))
+
+    b = ((prize_x/a_x) - (prize_y/a_y)) / ((b_x/a_x) - (b_y/a_y))
+    a = (prize_x/a_x) - ((b_x/a_x)*b)
+    {a, b}
+  end
+end
+```
+
+```elixir
+ClawMachineV2.calculate_num_presses({94, 34}, {22, 67}, {10000000008400, 10000000005400})
+```
+
+```elixir
+ClawMachineV2.run_all("c:/Users/slims/Downloads/day_13_claw.txt")
+```

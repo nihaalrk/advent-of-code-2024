@@ -1,0 +1,214 @@
+# Day 17
+
+## Part 1
+
+```elixir
+defmodule Computer do
+  def run_input(input_str, newline) do
+    {a, b, c, program} = read_input(input_str, newline)
+    run(a, b, c, program, 0)
+  end
+  
+  def run(a, b, c, program, pointer \\ 0, out \\ []) do
+    opcode = program[pointer]
+    case opcode do
+      nil -> Enum.join(out, ",")
+
+      _ ->
+        literal_operand = program[pointer+1]
+    
+        combo_operand = case literal_operand do
+          x when x <= 3 -> x
+          4 -> a
+          5 -> b
+          6 -> c
+        end
+    
+        case opcode do
+          0 ->
+            a = trunc(a / (2**combo_operand))
+            run(a, b, c, program, pointer + 2, out)
+          1 ->
+            b = Bitwise.bxor(b, literal_operand)
+            run(a, b, c, program, pointer + 2, out)
+          2 ->
+            b = rem(combo_operand, 8)
+            run(a, b, c, program, pointer + 2, out)
+          3 ->
+            case a do
+              0 -> run(a, b, c, program, pointer + 2, out)
+              _ -> run(a, b, c, program, literal_operand, out)
+            end
+          4 ->
+            b = Bitwise.bxor(b, c)
+            run(a, b, c, program, pointer + 2, out)
+          5 ->
+            out = out ++ [rem(combo_operand, 8)]
+            run(a, b, c, program, pointer + 2, out)
+          6 ->
+            b = trunc(a / (2**combo_operand))
+            run(a, b, c, program, pointer + 2, out)
+          7 ->
+            c = trunc(a / (2**combo_operand))
+            run(a, b, c, program, pointer + 2, out)
+        end
+    end
+  end
+  
+  def read_input(input_str, newline) do
+    [registers_str, program_str] = input_str |> String.split(newline <> newline, trim: true)
+    [a, b, c] =
+      String.split(registers_str, newline, trim: true)
+      |> Enum.map(fn str ->
+        String.slice(str, 12..-1//1) |> String.to_integer
+      end)
+    program =
+      String.slice(program_str, 9..-1//1)
+      |> String.split(",")
+      |> Enum.with_index
+      |> Enum.reduce(%{}, fn {x, i}, acc -> Map.put(acc, i, String.to_integer(x)) end)
+    {a, b, c, program}
+  end
+end
+```
+
+```elixir
+"Register A: 729
+Register B: 0
+Register C: 0
+
+Program: 0,1,5,4,3,0"
+|> Computer.run_input("\n")
+```
+
+```elixir
+"Register A: 64196994
+Register B: 0
+Register C: 0
+
+Program: 2,4,1,1,7,5,1,5,4,0,0,3,5,5,3,0"
+|> Computer.run_input("\n")
+```
+
+## Part 2
+
+```elixir
+{_, _, _, program} =
+"Register A: 2024
+Register B: 0
+Register C: 0
+
+Program: 0,3,5,4,3,0"
+|> Computer.read_input("\n")
+```
+
+```elixir
+{_, _, _, program} =
+"Register A: 64196994
+Register B: 0
+Register C: 0
+
+Program: 2,4,1,1,7,5,1,5,4,0,0,3,5,5,3,0"
+|> Computer.read_input("\n")
+```
+
+```elixir
+# 1. b = a mod 8
+# 2. b = bxor(b, 1)
+# 3. c = trunc(a / (2**b))
+# 4. b = bxor(b, 5)
+# 5. b = bxor(b, c)
+# 6. a = trunc(a / (2**3))
+# 7. output b
+# 8. back to step 1 (unless a is 0)
+```
+
+```elixir
+# the final output is 0, which means b is 0
+# b = bxor(b, c), so b and c must be equal
+# bxor(b, 5) = trunc(a / 2**b)
+
+# a also has to be 0 at the end
+# 0 = trunc(a / 2**3)
+# so a is in the range 0 to 7
+
+# possible values for trunc(a / 2**b):
+# - if b is 3 or more, then 0
+# - if b is 2 or less, can be 1 or 0
+
+# if bxor(b, 5) = 1, then b = 4
+# if bxor(b, 5) = 0, then b = 5
+
+# b = 4 does not work, so b must be 5 before this
+
+# so we have:
+# 1. b = a mod 8 = 4             (a must have been 4)
+# 2. b = bxor(b, 1) = 5          (b was 4)
+# 3. c = trunc(a / (2**b)) = 0   (a in range 0 to 7, b = 5)
+# 4. b = bxor(5, 5) = 0          (b was 5)
+# 5. b = bxor(0, 0) = 0          (b was 0, c was 0)
+# 6. a = trunc(a / (2**3)) = 0   (a in range 0 to 7)
+# 7. output 0
+
+# so a started at 4, b and c we don't know
+
+# aha!
+# if we know what value we want a to be at the end of an iteration,
+# we know there are only 7 possibilities for its value at the start.
+# so we can try those to see which one outputs the desired value.
+```
+
+```elixir
+Enum.slice([1,2,3,4], (4-1)..4)
+```
+
+```elixir
+defmodule ComputerSolver do
+  def run_input(input_str, newline) do
+    {_, _, _, program} = Computer.read_input(input_str, newline)
+    [_, program_str] = input_str |> String.split(newline <> newline, trim: true)
+    
+    final_desired_output =
+      String.slice(program_str, 9..-1//1)
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
+    iterations = Enum.count(final_desired_output)
+
+    recursive_solve(0, program, final_desired_output, iterations-1)
+    |> Enum.sort |> Enum.at(0)
+  end
+
+  # start from the end and work our way back to the beginning
+  # by solving for what the possible values of 'a' are at each iteration
+  def recursive_solve(desired_a, program, final_desired_output, index, output \\ [])
+  def recursive_solve(a, _, _, -1, output), do: [a | output]
+  def recursive_solve(desired_a, program, final_desired_output, index, output) do
+    length = Enum.count(final_desired_output)
+    desired_output = Enum.slice(final_desired_output, index..length) |> Enum.join(",")
+    possible_a_values = solve_iteration(desired_a, desired_output, program)
+    Enum.reduce(possible_a_values, output, fn a, acc_output ->
+      recursive_solve(a, program, final_desired_output, index - 1, acc_output)
+    end)
+  end
+
+  # technically we don't need to check the entire desired output,
+  # just the first output, since we already checked the following values.
+  # I just didn't feel like modifying the existing `run` function,
+  # and it's already plenty fast enough.
+  def solve_iteration(desired_a, desired_output, program) do
+    possible_a_values = (desired_a * 8)..(((desired_a + 1) * 8) - 1)
+    Enum.filter(possible_a_values, fn a ->
+      Computer.run(a, 0, 0, program) == desired_output
+    end)
+  end
+end
+```
+
+```elixir
+"Register A: 64196994
+Register B: 0
+Register C: 0
+
+Program: 2,4,1,1,7,5,1,5,4,0,0,3,5,5,3,0"
+|> ComputerSolver.run_input("\n")
+```

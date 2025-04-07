@@ -1,0 +1,352 @@
+# Day 15
+
+## Part 1
+
+```elixir
+defmodule Warehouse do
+  def run(input_str, newline\\"\n") do
+    {warehouse_map, start_loc, moves, max_r, max_c} = read_input(input_str, newline)
+
+    {new_map, _robot_loc} =
+      Enum.reduce(moves, {warehouse_map, start_loc}, fn dir, {curr_map, curr_loc} ->
+        move_once(curr_map, curr_loc, dir)
+      end)
+
+    0..(max_r-1) |> Enum.reduce(0, fn r, acc ->
+      0..(max_c-1) |> Enum.reduce(acc, fn c, acc ->
+        case new_map[{r, c}] do
+          "O" -> acc + (100 * r) + c
+          _ -> acc
+        end
+      end)
+    end)
+  end
+
+  def sample_run(input_str, newline, max_moves) do
+    {warehouse_map, start_loc, moves, max_r, max_c} = read_input(input_str, newline)
+    max_moves = max_moves || length(moves)
+    move_subset = Enum.take(moves, max_moves)
+
+    {new_map, _robot_loc} =
+      Enum.reduce(move_subset, {warehouse_map, start_loc}, fn dir, {curr_map, curr_loc} ->
+        move_once(curr_map, curr_loc, dir)
+      end)
+
+    visualize(new_map, max_r, max_c)
+  end 
+  
+  def move_once(warehouse_map, {r, c}, direction) do
+    next_loc = next_location({r, c}, direction)
+    case warehouse_map[next_loc] do
+      "." ->
+        new_map = warehouse_map
+                  |> Map.put({r, c}, ".")
+                  |> Map.put(next_loc, "@")
+        {new_map, next_loc}
+      
+      "#" -> {warehouse_map, {r, c}}
+      
+      "O" ->
+        open_spot = find_open_spot(warehouse_map, {r, c}, direction)
+        case open_spot do
+          nil -> {warehouse_map, {r, c}}
+          _ ->
+            new_map = warehouse_map
+                      |> Map.put({r, c}, ".")
+                      |> Map.put(next_loc, "@")
+                      |> Map.put(open_spot, "O")
+            {new_map, next_loc}
+        end
+    end
+  end
+
+  def find_open_spot(warehouse_map, {r, c}, direction) do
+    next_loc = next_location({r, c}, direction)
+    case warehouse_map[next_loc] do
+      "." -> next_loc
+      "#" -> nil
+      "O" -> find_open_spot(warehouse_map, next_loc, direction)
+    end
+  end
+
+  def next_location({r, c}, "<"), do: {r, c-1}
+  def next_location({r, c}, ">"), do: {r, c+1}
+  def next_location({r, c}, "^"), do: {r-1, c}
+  def next_location({r, c}, "v"), do: {r+1, c}
+
+  def read_input(input_str, newline) do
+    [warehouse_str, moves_str] = input_str |> String.split(newline <> newline, trim: true)
+
+    max_r = warehouse_str |> String.split(newline, trim: true) |> length
+    max_c = warehouse_str |> String.split(newline, trim: true) |> Enum.at(0) |> String.length
+    
+    {warehouse_map, starting_location} =
+      warehouse_str
+      |> String.split(newline, trim: true)
+      |> Enum.map(&String.graphemes/1)
+      |> read_warehouse
+
+    moves = moves_str |> String.replace(newline, "") |> String.graphemes
+
+    {warehouse_map, starting_location, moves, max_r, max_c}
+  end
+
+  def read_warehouse(warehouse_list) do
+    warehouse_list |> Enum.with_index |> Enum.reduce({%{}, nil}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, {acc_map, robot} ->
+        {Map.put(acc_map, {r, c}, value), (if value == "@", do: {r, c}) || robot}
+      end)
+    end)
+  end
+
+  def visualize(warehouse_map, max_r, max_c) do
+    0..(max_r-1) |> Enum.each(fn r ->
+      0..(max_c-1) |> Enum.reduce("", fn c, acc_str ->
+        acc_str <> "#{warehouse_map[{r, c}]}"
+      end) |> IO.inspect(charlists: :as_lists)
+    end)
+  end
+end
+```
+
+```elixir
+test_input_str = "########
+#..O.O.#
+##@.O..#
+#...O..#
+#.#.O..#
+#...O..#
+#......#
+########
+
+<^^>>>vv<v>>v<<"
+
+Warehouse.sample_run(test_input_str, "\r\n", 15)
+```
+
+```elixir
+test_input_str_2 = "##########
+#..O..O.O#
+#......O.#
+#.OO..O.O#
+#..O@..O.#
+#O#..O...#
+#O..O..O.#
+#.OO.O.OO#
+#....O...#
+##########
+
+<vv>^<v^>v>^vv^v>v<>v^v<v<^vv<<<^><<><>>v<vvv<>^v^>^<<<><<v<<<v^vv^v>^
+vvv<<^>^v^^><<>>><>^<<><^vv^^<>vvv<>><^^v>^>vv<>v<<<<v<^v>^<^^>>>^<v<v
+><>vv>v^v^<>><>>>><^^>vv>v<^^^>>v^v^<^^>v^^>v^<^v>v<>>v^v^<v>v^^<^^vv<
+<<v<^>>^^^^>>>v^<>vvv^><v<<<>^^^vv^<vvv>^>v<^^^^v<>^>vvvv><>>v^<<^^^^^
+^><^><>>><>^^<<^^v>>><^<v>^<vv>>v>>>^v><>^v><<<<v>>v<v<v>vvv>^<><<>^><
+^>><>^v<><^vvv<^^<><v<<<<<><^v<<<><<<^^<v<^^^><^>>^<v^><<<^>>^v<v^v<v^
+>^>>^v>vv>^<<^v<>><<><<v<<v><>v<^vv<<<>^^v^>^^>>><<^v>>v^v><^^>>^<>vv^
+<><^^>^^^<><vvvvv^v<v<<>^v<v>v<<^><<><<><<<^^<<<^<<>><<><^^^>^^<>^>v<>
+^^>vv<^v^v<vv>^<><v<^v>^^^>>>^^vvv^>vvv<>>>^<^>>>>>^<<^v>^vvv<>^<><<v>
+v^^>>><<^^<>>^v^<v^vv<>v^<<>^<^v^v><^<<<><<^<v><v<>vv>>v><v^<vv<>v^<<^"
+
+Warehouse.sample_run(test_input_str_2, "\r\n", nil)
+```
+
+```elixir
+Warehouse.run(test_input_str, "\r\n")
+```
+
+```elixir
+Warehouse.run(test_input_str_2, "\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_15_warehouse.txt")
+|> Warehouse.run
+```
+
+## Part 2
+
+```elixir
+defmodule WarehouseV2 do
+  def run(input_str, newline\\"\n") do
+    {warehouse_map, start_loc, moves, max_r, max_c} = read_input(input_str, newline)
+
+    {new_map, _robot_loc} =
+      Enum.reduce(moves, {warehouse_map, start_loc}, fn dir, {curr_map, curr_loc} ->
+        move_once(curr_map, curr_loc, dir)
+      end)
+
+    0..(max_r-1) |> Enum.reduce(0, fn r, acc ->
+      0..(max_c-1) |> Enum.reduce(acc, fn c, acc ->
+        case new_map[{r, c}] do
+          "[" -> acc + (100 * r) + c
+          _ -> acc
+        end
+      end)
+    end)
+  end
+
+  def sample_run(input_str, newline, max_moves) do
+    {warehouse_map, start_loc, moves, max_r, max_c} = read_input(input_str, newline)
+    max_moves = max_moves || length(moves)
+    move_subset = Enum.take(moves, max_moves)
+
+    {new_map, _robot_loc} =
+      Enum.reduce(move_subset, {warehouse_map, start_loc}, fn dir, {curr_map, curr_loc} ->
+        move_once(curr_map, curr_loc, dir)
+      end)
+
+    IO.inspect("next move: #{moves |> Enum.at(max_moves)}")
+    visualize(new_map, max_r, max_c)
+  end 
+  
+  def move_once(warehouse_map, {r, c}, direction) do
+    next_loc = next_location({r, c}, direction)
+    case warehouse_map[next_loc] do
+      "." ->
+        new_map = warehouse_map
+                  |> Map.put({r, c}, ".")
+                  |> Map.put(next_loc, "@")
+        {new_map, next_loc}
+      
+      "#" -> {warehouse_map, {r, c}}
+      
+      box when box == "[" or box == "]" ->
+        boxes_to_move = move_boxes(warehouse_map, next_loc, direction)
+        case boxes_to_move do
+          [] -> {warehouse_map, {r, c}}
+          _ ->
+            new_map_1 =
+              Enum.reduce(boxes_to_move, warehouse_map, fn {loc, _}, acc_map ->
+                Map.put(acc_map, loc, ".") # first replace old spots with "."
+              end)
+            new_map_2 =
+              Enum.reduce(boxes_to_move, new_map_1, fn {loc, value}, acc_map ->
+                Map.put(acc_map, next_location(loc, direction), value) # then actually move the box
+              end)
+              |> Map.put({r, c}, ".")
+              |> Map.put(next_loc, "@")
+            {new_map_2, next_loc}
+        end
+    end
+  end
+
+  # returns a list of {location, value} for all boxes that need to be moved
+  def move_boxes(warehouse_map, loc, dir, acc \\ [])
+  def move_boxes(warehouse_map, {r, c}, dir, acc) when dir == "^" or dir == "v" do
+    {left, right} =
+        case warehouse_map[{r, c}] do
+          "[" -> {{r, c}, {r, c+1}}
+          "]" -> {{r, c-1}, {r, c}}
+        end
+    next_left = next_location(left, dir)
+    next_right = next_location(right, dir)
+    these_boxes = [{left, warehouse_map[left]}, {right, warehouse_map[right]}]
+
+    case {warehouse_map[next_left], warehouse_map[next_right]} do
+      {".", "."} ->
+        these_boxes ++ acc
+
+      {_, "#"} -> []
+
+      {"#", _} -> []
+
+      {"[", "]"} -> move_boxes(warehouse_map, next_left, dir, these_boxes ++ acc)
+
+      {"]", "["} ->
+        result_left = move_boxes(warehouse_map, next_left, dir)
+        (if result_left != [] do
+          move_boxes(warehouse_map, next_right, dir, result_left ++ these_boxes ++ acc)
+        end) || []
+
+      {"]", _} -> move_boxes(warehouse_map, next_left, dir, these_boxes ++ acc)
+
+      {_, "["} -> move_boxes(warehouse_map, next_right, dir, these_boxes ++ acc)
+    end
+  end
+  
+  def move_boxes(warehouse_map, {r, c}, dir, acc) when dir == "<" or dir == ">" do
+    other_part = next_location({r, c}, dir)
+    next = next_location(other_part, dir)
+    these_boxes = [{{r, c}, warehouse_map[{r, c}]}, {other_part, warehouse_map[other_part]}]
+    
+    case warehouse_map[next] do
+      "." -> these_boxes ++ acc
+      "#" -> []
+      _ -> move_boxes(warehouse_map, next, dir, these_boxes ++ acc)
+    end
+  end
+
+  def find_open_spot(warehouse_map, {r, c}, direction) do
+    next_loc = next_location({r, c}, direction)
+    case warehouse_map[next_loc] do
+      "." -> next_loc
+      "#" -> nil
+      "O" -> find_open_spot(warehouse_map, next_loc, direction)
+    end
+  end
+
+  def next_location({r, c}, "<"), do: {r, c-1}
+  def next_location({r, c}, ">"), do: {r, c+1}
+  def next_location({r, c}, "^"), do: {r-1, c}
+  def next_location({r, c}, "v"), do: {r+1, c}
+
+  def read_input(input_str, newline) do
+    [warehouse_str, moves_str] = input_str |> String.split(newline <> newline, trim: true)
+
+    max_r = warehouse_str |> String.split(newline, trim: true) |> length
+    max_c = 2 * (warehouse_str |> String.split(newline, trim: true) |> Enum.at(0) |> String.length)
+    
+    {warehouse_map, starting_location} =
+      warehouse_str
+      |> String.split(newline, trim: true)
+      |> Enum.map(&String.graphemes/1)
+      |> read_warehouse
+
+    moves = moves_str |> String.replace(newline, "") |> String.graphemes
+
+    {warehouse_map, starting_location, moves, max_r, max_c}
+  end
+
+  def read_warehouse(warehouse_list) do
+    warehouse_list |> Enum.with_index |> Enum.reduce({%{}, nil}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, base_c}, {acc_map, robot} ->
+        c = base_c * 2
+        case value do
+          "#" ->
+            {acc_map |> Map.put({r, c}, value) |> Map.put({r, c+1}, value), robot}
+          
+          "O" ->
+            {acc_map |> Map.put({r, c}, "[") |> Map.put({r, c+1}, "]"), robot}
+
+          "." ->
+            {acc_map |> Map.put({r, c}, value) |> Map.put({r, c+1}, value), robot}
+
+          "@" ->
+            {acc_map |> Map.put({r, c}, value) |> Map.put({r, c+1}, "."), {r, c}}
+        end
+      end)
+    end)
+  end
+
+  def visualize(warehouse_map, max_r, max_c) do
+    0..(max_r-1) |> Enum.each(fn r ->
+      0..(max_c-1) |> Enum.reduce("", fn c, acc_str ->
+        acc_str <> "#{warehouse_map[{r, c}]}"
+      end) |> IO.inspect(charlists: :as_lists)
+    end)
+  end
+end
+```
+
+```elixir
+WarehouseV2.sample_run(test_input_str_2, "\r\n", nil)
+```
+
+```elixir
+WarehouseV2.run(test_input_str_2, "\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_15_warehouse.txt")
+|> WarehouseV2.run
+```

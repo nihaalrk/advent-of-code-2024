@@ -1,0 +1,74 @@
+# Day 3
+
+## Part 2
+
+```elixir
+str = "c:/Users/slims/Downloads/day_3_file.txt" |> File.read!
+```
+
+```elixir
+defmodule MemoryParser do
+  def is_valid(current_sequence, char) when current_sequence == "", do: char == "m" || char == "d"
+
+  def is_valid(current_sequence, char) when current_sequence == "d", do: char == "o"
+  def is_valid(current_sequence, char) when current_sequence == "do", do: char == "(" || char == "n"
+  def is_valid(current_sequence, char) when current_sequence == "do(", do: char == ")"
+  def is_valid(current_sequence, char) when current_sequence == "don", do: char == "'"
+  def is_valid(current_sequence, char) when current_sequence == "don'", do: char == "t"
+  def is_valid(current_sequence, char) when current_sequence == "don't", do: char == "("
+  def is_valid(current_sequence, char) when current_sequence == "don't(", do: char == ")"
+  
+  def is_valid(current_sequence, char) when current_sequence == "m", do: char == "u"
+  def is_valid(current_sequence, char) when current_sequence == "mu", do: char == "l"
+  def is_valid(current_sequence, char) when current_sequence == "mul", do: char == "("
+  def is_valid(current_sequence, char) when current_sequence == "mul(", do: char_is_integer(char)
+  def is_valid(current_sequence, char) do
+    cond do
+      char_is_integer(char) -> true
+      char == "," -> !String.contains?(current_sequence, ",")
+      char == ")" -> String.contains?(current_sequence, ",") && String.slice(current_sequence, -1, 1) |> char_is_integer()
+      true -> false
+    end
+  end
+
+  def is_complete(_current_sequence, char), do: char == ")"
+
+  def is_do(sequence), do: sequence == "do()"
+
+  def is_dont(sequence), do: sequence == "don't()"
+
+  def char_is_integer(char) do
+    Enum.member?(["0","1","2","3","4","5","6","7","8","9"], char)
+  end
+
+  def compute(_sequence, enabled) when not enabled, do: 0
+
+  def compute(sequence, _enabled) do
+    String.slice(sequence, 4..-2//1)
+    |> String.split(",")
+    |> Enum.map(&String.to_integer/1)
+    |> Enum.reduce(1, fn x, acc -> x * acc end)
+  end
+
+  def recur(str_list, _current_sequence, acc, _enabled) when length(str_list) == 0, do: acc
+  def recur(str_list, current_sequence, acc, enabled) do
+    [char | rest] = str_list
+    cond do
+      is_valid(current_sequence, char) && is_do(current_sequence <> char) ->
+        recur(rest, "", acc, true)
+      is_valid(current_sequence, char) && is_dont(current_sequence <> char) ->
+        recur(rest, "", acc, false)
+      is_valid(current_sequence, char) && is_complete(current_sequence, char) ->
+        recur(rest, "", acc + compute(current_sequence <> char, enabled), enabled)
+      is_valid(current_sequence, char) ->
+        recur(rest, current_sequence <> char, acc, enabled)
+      true ->
+        recur(rest, "", acc, enabled)
+    end
+  end
+end
+```
+
+```elixir
+MemoryParser.recur(String.graphemes(str), "", 0, true)
+```

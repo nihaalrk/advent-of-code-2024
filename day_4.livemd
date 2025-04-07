@@ -1,0 +1,129 @@
+# Day 4
+
+## Part 1
+
+```elixir
+board = "c:/Users/slims/Downloads/day_4_puzzle.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.map(&String.graphemes/1)
+```
+
+```elixir
+defmodule Board do
+  def count_xmas(board, r, c) do
+    case value_at(board, r, c) do
+      "X" -> count_all_dirs(board, r, c)
+      _ -> 0
+    end
+  end
+
+  def count_all_dirs(board, r, c) do
+    ["east", "southeast", "south", "southwest", "west", "northwest", "north", "northeast"]
+    |> Enum.reduce(0, fn dir, acc ->
+      case apply(__MODULE__, String.to_atom("check_#{dir}"), [board, r, c]) do
+        true -> 1 + acc
+        false -> acc
+      end
+    end)
+  end
+  
+  def check_east(board, r, c) do
+    value_at(board, r, c+1) == "M" && value_at(board, r, c+2) == "A" && value_at(board, r, c+3) == "S"
+  end
+
+  def check_southeast(board, r, c) do
+    value_at(board, r+1, c+1) == "M" && value_at(board, r+2, c+2) == "A" && value_at(board, r+3, c+3) == "S"
+  end
+
+  def check_south(board, r, c) do
+    value_at(board, r+1, c) == "M" && value_at(board, r+2, c) == "A" && value_at(board, r+3, c) == "S"
+  end
+
+  def check_southwest(board, r, c) do
+    value_at(board, r+1, c-1) == "M" && value_at(board, r+2, c-2) == "A" && value_at(board, r+3, c-3) == "S"
+  end
+
+  def check_west(board, r, c) do
+    value_at(board, r, c-1) == "M" && value_at(board, r, c-2) == "A" && value_at(board, r, c-3) == "S"
+  end
+
+  def check_northwest(board, r, c) do
+    value_at(board, r-1, c-1) == "M" && value_at(board, r-2, c-2) == "A" && value_at(board, r-3, c-3) == "S"
+  end
+
+  def check_north(board, r, c) do
+    value_at(board, r-1, c) == "M" && value_at(board, r-2, c) == "A" && value_at(board, r-3, c) == "S"
+  end
+
+  def check_northeast(board, r, c) do
+    value_at(board, r-1, c+1) == "M" && value_at(board, r-2, c+2) == "A" && value_at(board, r-3, c+3) == "S"
+  end
+
+  def value_at(board, r, c) do
+    row_count = length(board)
+    col_count = length(Enum.at(board, 0))
+    cond do
+      r >= 0 && c >= 0 && r < row_count && c < col_count ->
+        Enum.at(board, r) |> Enum.at(c)
+      true -> nil
+    end
+  end
+end
+```
+
+```elixir
+Enum.reduce(board |> Enum.with_index, 0, fn {row, r}, row_acc ->
+  Enum.reduce(row |> Enum.with_index, row_acc, fn {_column, c}, col_acc ->
+    Board.count_xmas(board, r, c) + col_acc
+  end)
+end)
+```
+
+## Part 2
+
+```elixir
+defmodule BoardV2 do
+  def count_mas(board, r, c) do
+    case value_at(board, r, c) do
+      "A" -> count_mas_cross(board, r, c)
+      _ -> 0
+    end
+  end
+
+  def count_mas_cross(board, r, c) do
+    cond do
+      check_left(board, r, c) && check_right(board, r, c) -> 1
+      true -> 0
+    end
+  end
+
+  def check_left(board, r, c) do
+    (value_at(board, r-1, c-1) == "M" && value_at(board, r+1, c+1) == "S") ||
+      (value_at(board, r-1, c-1) == "S" && value_at(board, r+1, c+1) == "M")
+  end
+
+  def check_right(board, r, c) do
+    (value_at(board, r-1, c+1) == "M" && value_at(board, r+1, c-1) == "S") ||
+      (value_at(board, r-1, c+1) == "S" && value_at(board, r+1, c-1) == "M")
+  end
+
+  def value_at(board, r, c) do
+    row_count = length(board)
+    col_count = length(Enum.at(board, 0))
+    cond do
+      r >= 0 && c >= 0 && r < row_count && c < col_count ->
+        Enum.at(board, r) |> Enum.at(c)
+      true -> nil
+    end
+  end
+end
+```
+
+```elixir
+Enum.reduce(board |> Enum.with_index, 0, fn {row, r}, row_acc ->
+  Enum.reduce(row |> Enum.with_index, row_acc, fn {_column, c}, col_acc ->
+    BoardV2.count_mas(board, r, c) + col_acc
+  end)
+end)
+```

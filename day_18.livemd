@@ -1,0 +1,207 @@
+# Day 18
+
+## Part 1
+
+```elixir
+defmodule RamRun do
+  def run_a_star(input_str, newline, num_bytes, end_loc) do
+    grid_map = read_input(input_str, newline, num_bytes)
+    init_cache()
+    recur_a_star(grid_map, %{{0, 0} => 0}, end_loc)
+  end
+
+  def recur_a_star(grid_map, nodes_to_explore, {end_x, end_y} = end_loc) do
+    case find_best_node(nodes_to_explore, end_loc) do
+      nil -> nil
+        
+      {{node_loc, node_score} = node, rest_to_explore} ->
+        cond do
+          node_loc == end_loc -> node_score
+    
+          true ->
+            # add qualifying neighbors to nodes_to_explore
+            new_nodes_to_explore =
+              neighbors(grid_map, node, end_x, end_y)
+              |> Enum.reduce(rest_to_explore, fn {neighbor_loc, neighbor_score}, acc_explore ->
+                cond do
+                  lte(lookup_visited(neighbor_loc), neighbor_score) ->
+                    acc_explore # skip
+    
+                  lte(rest_to_explore[neighbor_loc], neighbor_score) ->
+                    acc_explore # skip
+    
+                  true ->
+                    acc_explore |> Map.put(neighbor_loc, neighbor_score)
+                end
+              end)
+            mark_visited(node)
+            recur_a_star(grid_map, new_nodes_to_explore, end_loc)
+        end
+    end
+  end
+
+  def find_best_node(nodes, dest) do
+    best_node =
+      Enum.reduce(nodes, nil, fn curr, best ->
+        cond do
+          best == nil -> curr
+          heuristic(curr, dest) < heuristic(best, dest) -> curr
+          true -> best
+        end
+      end)
+    case best_node do
+      nil -> nil
+      
+      {best_node_key, _} ->
+        new_nodes = nodes |> Map.delete(best_node_key)
+        {best_node, new_nodes}
+    end
+  end
+
+  def heuristic({{node_x, node_y}, node_score}, {dest_x, dest_y}) do
+    node_score + abs(dest_x - node_x) + abs(dest_y - node_y)
+  end
+
+  def neighbors(grid_map, {{curr_x, curr_y}, curr_score}, max_x, max_y) do
+    [
+      {{curr_x-1, curr_y}, curr_score + 1},
+      {{curr_x+1, curr_y}, curr_score + 1},
+      {{curr_x, curr_y-1}, curr_score + 1},
+      {{curr_x, curr_y+1}, curr_score + 1}
+    ]
+    |> Enum.filter(fn {{x, y}, _score} ->
+      !grid_map[{x, y}] && x >= 0 && y >= 0 && x <= max_x && y <= max_y
+    end)
+  end
+
+  def lookup_visited(node) do
+    case :ets.lookup(:visited_cache, node) do
+      [{_key, value}] -> value
+      _ -> nil
+    end
+  end
+
+  def mark_visited({node_loc, node_score}) do
+    :ets.insert(:visited_cache, {node_loc, node_score})
+  end
+
+  # returns map with unsafe locations
+  def read_input(input_str, newline, num_bytes) do
+    input_str
+    |> String.split(newline, trim: true)
+    |> Enum.take(num_bytes)
+    |> Map.new(fn coord_str ->
+      [x, y] = String.split(coord_str, ",") |> Enum.map(&String.to_integer/1)
+      {{x, y}, true}
+    end)
+  end
+
+  def init_cache do
+    if :ets.whereis(:visited_cache) != :undefined do
+      :ets.delete(:visited_cache)
+    end
+
+    :ets.new(:visited_cache, [:set, :public, :named_table])
+  end
+
+  def lte(x, y), do: x && x <= y
+end
+```
+
+```elixir
+"5,4
+4,2
+4,5
+3,0
+2,1
+6,3
+2,4
+1,5
+0,6
+3,3
+2,6
+5,1
+1,2
+5,5
+2,5
+6,5
+1,4
+0,4
+6,4
+1,1
+6,1
+1,0
+0,5
+1,6
+2,0" |> RamRun.run_a_star("\r\n", 12, {6, 6})
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_18_grid.txt")
+|> RamRun.run_a_star("\n", 1024, {70, 70})
+```
+
+## Part 2
+
+```elixir
+defmodule RamRunV2 do
+  def run_binary_search(input_str, newline, end_loc) do
+    input_list = input_str |> String.split(newline, trim: true)
+    length = input_list |> Enum.count()
+    start_bytes = (length / 2) |> trunc()
+    result = recur_binary_search(input_str, newline, start_bytes, end_loc, 1, length)
+    Enum.at(input_list, result-1)
+  end
+
+  def recur_binary_search(input_str, newline, num_bytes, end_loc, min, max) when min >= max do
+    case RamRun.run_a_star(input_str, newline, num_bytes, end_loc) do
+      nil -> num_bytes
+      _ -> num_bytes + 1
+    end
+  end
+  
+  def recur_binary_search(input_str, newline, num_bytes, end_loc, min_bytes, max_bytes) do
+    case RamRun.run_a_star(input_str, newline, num_bytes, end_loc) do
+      nil ->
+        new_num_bytes = ((num_bytes + min_bytes) / 2) |> trunc()
+        recur_binary_search(input_str, newline, new_num_bytes, end_loc, min_bytes, num_bytes-1)
+      _ ->
+        new_num_bytes = ((num_bytes + max_bytes) / 2) |> trunc()
+        recur_binary_search(input_str, newline, new_num_bytes, end_loc, num_bytes+1, max_bytes)
+    end
+  end
+end
+```
+
+```elixir
+"5,4
+4,2
+4,5
+3,0
+2,1
+6,3
+2,4
+1,5
+0,6
+3,3
+2,6
+5,1
+1,2
+5,5
+2,5
+6,5
+1,4
+0,4
+6,4
+1,1
+6,1
+1,0
+0,5
+1,6
+2,0" |> RamRunV2.run_binary_search("\r\n", {6, 6})
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_18_grid.txt")
+|> RamRunV2.run_binary_search("\n", {70, 70})
+```

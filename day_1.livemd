@@ -1,0 +1,55 @@
+<!-- livebook:{"file_entries":[{"file":{"file_system_id":"local","file_system_type":"local","path":"c:/Users/slims/Downloads/day_1_lists.txt"},"name":"day_1_lists.txt","type":"file"}]} -->
+
+# Day 1
+
+```elixir
+Mix.install([
+  {:nimble_csv, "~> 1.2"}
+])
+```
+
+## Part 1
+
+```elixir
+NimbleCSV.define(MyParser, separator: "   ", escape: "\"")
+```
+
+```elixir
+[list_1, list_2] =
+  "c:/Users/slims/Downloads/day_1_lists.txt"
+  |> File.stream!
+  |> MyParser.parse_stream(skip_headers: false)
+  |> Enum.map(fn [str1, str2] -> [String.to_integer(str1), String.to_integer(str2)] end)
+  |> Enum.zip_with(&Function.identity/1)
+```
+
+```elixir
+sorted_list_1 = list_1 |> Enum.sort
+```
+
+```elixir
+sorted_list_2 = list_2 |> Enum.sort
+```
+
+```elixir
+Enum.zip_reduce(
+  sorted_list_1,
+  sorted_list_2,
+  0,
+  fn x, y, acc -> abs(x - y) + acc end
+)
+```
+
+## Part 2
+
+```elixir
+list_2_frequencies = Enum.frequencies(sorted_list_2)
+```
+
+```elixir
+Enum.reduce(sorted_list_1, 0, fn x, acc ->
+  Map.get(list_2_frequencies, x, 0) * x + acc
+end)
+```
+
+<!-- livebook:{"offset":1018,"stamp":{"token":"XCP.pEj5snTXKQO-jypFxfF8YGnV2Jsjxmh0i0Os0aQUQhsFrlZSOe6hDEO8d1KXV_s6GSglekTeOSVZE3PE4QHY-2jJL04md0vbhy2hug","version":2}} -->

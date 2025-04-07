@@ -1,0 +1,80 @@
+# Day 7
+
+```elixir
+Mix.install([
+  {:nimble_csv, "~> 1.2"}
+])
+```
+
+## Part 1
+
+```elixir
+NimbleCSV.define(MyParser, separator: " ", escape: "\"")
+```
+
+```elixir
+defmodule Equation do
+  def matches_result(result, nums, acc) when nums == [], do: result == acc
+  def matches_result(result, _nums, acc) when acc > result, do: false
+  def matches_result(result, [num | rest], acc) do
+    matches_result(result, rest, acc + num) || matches_result(result, rest, acc * num)
+  end
+
+  def calibration_result(result, [num | rest]) do
+    case matches_result(result, rest, num) do
+      true -> result
+      false -> 0
+    end
+  end
+end
+```
+
+```elixir
+Equation.calibration_result(292, [11, 6, 16, 20])
+```
+
+```elixir
+equations =
+  "c:/Users/slims/Downloads/day_7_equations.txt"
+  |> File.stream!
+  |> MyParser.parse_stream(skip_headers: false)
+  |> Enum.map(fn [result | nums] ->
+    {result |> String.replace(":", "") |> String.to_integer, Enum.map(nums, &String.to_integer/1)}  
+  end)
+```
+
+```elixir
+Enum.reduce(equations, 0, fn {res, nums}, acc ->
+  Equation.calibration_result(res, nums) + acc
+end)
+```
+
+## Part 2
+
+```elixir
+defmodule EquationV2 do
+  def matches_result(result, nums, acc) when nums == [], do: result == acc
+  def matches_result(result, _nums, acc) when acc > result, do: false
+  def matches_result(result, [num | rest], acc) do
+    matches_result(result, rest, acc + num) || matches_result(result, rest, acc * num) ||
+      matches_result(result, rest, "#{acc}#{num}" |> String.to_integer)
+  end
+
+  def calibration_result(result, [num | rest]) do
+    case matches_result(result, rest, num) do
+      true -> result
+      false -> 0
+    end
+  end
+end
+```
+
+```elixir
+EquationV2.calibration_result(7290, [6, 8, 6, 15])
+```
+
+```elixir
+Enum.reduce(equations, 0, fn {res, nums}, acc ->
+  EquationV2.calibration_result(res, nums) + acc
+end)
+```

@@ -1,0 +1,138 @@
+# Day 19
+
+## Part 1
+
+```elixir
+defmodule TowelPatterns do
+  def run(input_str, newline) do
+    {towels, designs} = read_input(input_str, newline)
+    Enum.reduce(designs, 0, fn design, acc ->
+      case is_possible(design, towels) do
+        true -> acc + 1
+        false -> acc
+      end
+    end)
+  end
+
+  def is_possible("", _), do: true
+  def is_possible(design, towels) do
+    first_char = String.first(design)
+    matching_towels = Map.get(towels, first_char, [])
+    Enum.find_value(matching_towels, false, fn towel ->
+      case String.starts_with?(design, towel) do
+        true ->
+          remaining_design = String.replace_leading(design, towel, "")
+          is_possible(remaining_design, towels)
+
+        false ->
+          false
+      end
+    end)
+  end
+  
+  def read_input(input_str, newline) do
+    [towels_str, designs_str] = input_str |> String.split(newline <> newline, trim: true)
+    towels = towels_str |> String.split(", ") |> Enum.group_by(&String.first/1)
+    designs = designs_str |> String.split(newline, trim: true)
+    {towels, designs}
+  end
+end
+```
+
+```elixir
+"r, wr, b, g, bwu, rb, gb, br
+
+brwrr
+bggr
+gbbr
+rrbgbr
+ubwu
+bwurrg
+brgr
+bbrgwb" |> TowelPatterns.run("\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_19_towel_designs.txt")
+|> TowelPatterns.run("\n")
+```
+
+## Part 2
+
+```elixir
+defmodule TowelPatternsV2 do
+  def run(input_str, newline) do
+    {towels, designs} = TowelPatterns.read_input(input_str, newline)
+    init_cache() 
+    Enum.reduce(designs, 0, fn design, acc ->
+      acc + num_possibilities(design, towels)
+    end)
+  end
+
+  def num_possibilities("", _), do: 1
+  def num_possibilities(design, towels) do
+    case lookup(design) do
+      nil ->
+        first_char = String.first(design)
+        matching_towels = Map.get(towels, first_char, [])
+        Enum.reduce(matching_towels, 0, fn towel, acc ->
+          case String.starts_with?(design, towel) do
+            true ->
+              remaining_design = String.replace_prefix(design, towel, "")
+              count = num_possibilities(remaining_design, towels)
+              save_to_cache(remaining_design, count)
+              acc + count
+            false ->
+              acc
+          end
+        end)
+      
+      value -> value
+    end
+  end
+  
+  def read_input(input_str, newline) do
+    [towels_str, designs_str] = input_str |> String.split(newline <> newline, trim: true)
+    towels = towels_str |> String.split(", ") |> Enum.group_by(&String.first/1)
+    designs = designs_str |> String.split(newline, trim: true)
+    {towels, designs}
+  end
+
+  def lookup(design) do
+    case :ets.lookup(:design_cache, design) do
+      [{_key, value}] -> value
+      _ -> nil
+    end
+  end
+
+  def save_to_cache(design, num_possibilities) do
+    :ets.insert(:design_cache, {design, num_possibilities})
+  end
+
+  def init_cache do
+    if :ets.whereis(:design_cache) != :undefined do
+      :ets.delete(:design_cache)
+    end
+
+    :ets.new(:design_cache, [:set, :public, :named_table])
+  end
+end
+```
+
+```elixir
+"r, wr, b, g, bwu, rb, gb, br
+
+brwrr
+bggr
+gbbr
+rrbgbr
+ubwu
+bwurrg
+brgr
+bbrgwb" |> TowelPatternsV2.run("\r\n")
+```
+
+```elixir
+File.read!("c:/Users/slims/Downloads/day_19_towel_designs.txt")
+|> TowelPatternsV2.run("\n")
+```

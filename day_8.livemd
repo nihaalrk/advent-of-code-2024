@@ -1,0 +1,146 @@
+# Day 8
+
+## Part 1
+
+```elixir
+test_map = "............
+........0...
+.....0......
+.......0....
+....0.......
+......A.....
+............
+............
+........A...
+.........A..
+............
+............"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+```
+
+```elixir
+defmodule Pairs do
+  def of([]), do: []
+  def of([first | rest]) do
+    (rest |> Enum.map(&([first, &1]))) ++ of(rest)
+  end
+end
+```
+
+```elixir
+defmodule AntennaMap do
+  def all_antinodes(map) do
+    grouped_by_antenna(map)
+    |> Enum.reduce(MapSet.new, fn {_, locations}, acc ->
+      Pairs.of(locations)
+      |> Enum.reduce(acc, fn [loc1, loc2], sub_acc ->
+        MapSet.union(sub_acc, antinodes_for_pair(map, loc1, loc2))
+      end)
+      |> MapSet.union(acc)
+    end)
+  end
+
+  def grouped_by_antenna(map) do
+    map
+    |> Enum.with_index
+    |> Enum.reduce(%{}, fn {row, r}, acc ->
+      row_map = row |> Enum.with_index |> Enum.group_by(fn {x, _c} -> x end, fn {_x, c} -> {r, c} end)
+      Map.merge(acc, row_map, fn _k, v1, v2 ->
+        v1 ++ v2
+      end)
+    end)
+    |> Map.drop(["."])
+  end
+
+  def antinodes_for_pair(map, {r1, c1}, {r2, c2}) do
+    r_diff = r1 - r2
+    c_diff = c1 - c2
+    [{r1 + r_diff, c1 + c_diff}, {r2 - r_diff, c2 - c_diff}]
+    |> Enum.filter(fn loc -> is_valid_location(map, loc) end)
+    |> MapSet.new
+  end
+
+  def is_valid_location(map, {r, c}) do
+    r >= 0 && c >= 0 && r < length(map) && c < length(Enum.at(map, 0))
+  end
+end
+```
+
+```elixir
+AntennaMap.grouped_by_antenna(test_map)
+```
+
+```elixir
+AntennaMap.all_antinodes(test_map) |> MapSet.size
+```
+
+```elixir
+map = "c:/Users/slims/Downloads/day_8_map.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.map(&String.graphemes/1)
+  |> Enum.filter(fn row -> length(row) > 0 end)
+```
+
+```elixir
+AntennaMap.all_antinodes(map) |> MapSet.size
+```
+
+## Part 2
+
+```elixir
+defmodule AntennaMapV2 do
+  def all_antinodes(map) do
+    grouped_by_antenna(map)
+    |> Enum.reduce(MapSet.new, fn {_, locations}, acc ->
+      Pairs.of(locations)
+      |> Enum.reduce(acc, fn [loc1, loc2], sub_acc ->
+        MapSet.union(sub_acc, antinodes_for_pair(map, loc1, loc2))
+      end)
+      |> MapSet.union(acc)
+    end)
+  end
+
+  def grouped_by_antenna(map) do
+    map
+    |> Enum.with_index
+    |> Enum.reduce(%{}, fn {row, r}, acc ->
+      row_map = row |> Enum.with_index |> Enum.group_by(fn {x, _c} -> x end, fn {_x, c} -> {r, c} end)
+      Map.merge(acc, row_map, fn _k, v1, v2 ->
+        v1 ++ v2
+      end)
+    end)
+    |> Map.drop(["."])
+  end
+
+  def antinodes_for_pair(map, {r1, c1}, {r2, c2}) do
+    r_diff = r1 - r2
+    c_diff = c1 - c2
+
+    (antinodes_in_one_direction(map, r1, c1, r_diff, c_diff, []) ++
+      antinodes_in_one_direction(map, r2, c2, -r_diff, -c_diff, []))
+    |> MapSet.new
+  end
+
+  def antinodes_in_one_direction(map, r, c, r_diff, c_diff, acc) do
+    case is_valid_location(map, {r, c}) do
+      true ->
+        antinodes_in_one_direction(map, r + r_diff, c + c_diff, r_diff, c_diff, acc ++ [{r, c}])
+      false -> acc
+    end
+  end
+
+  def is_valid_location(map, {r, c}) do
+    r >= 0 && c >= 0 && r < length(map) && c < length(Enum.at(map, 0))
+  end
+end
+```
+
+```elixir
+AntennaMapV2.all_antinodes(test_map) |> MapSet.size
+```
+
+```elixir
+AntennaMapV2.all_antinodes(map) |> MapSet.size
+```

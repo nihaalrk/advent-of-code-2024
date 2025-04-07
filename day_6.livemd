@@ -1,0 +1,154 @@
+# Day 6
+
+## Part 1
+
+```elixir
+defmodule Maze do
+  def traverse(maze, location, direction, visited) do
+    current_spot = value_at(maze, location)
+    visited = MapSet.put(visited, location)
+    maze = case current_spot do
+             "X" -> maze
+             _ -> maze |> replace_at(location, "X")
+           end
+    
+    next_loc = next_location(location, direction)
+    next_spot = value_at(maze, next_loc)
+    case next_spot do
+      "." -> traverse(maze, next_loc, direction, visited)
+      "X" -> traverse(maze, next_loc, direction, visited)
+      "#" -> traverse(maze, location, next_direction(direction), visited)
+      nil -> {maze, visited}
+    end
+  end
+
+  def next_location({r, c}, :up), do: {r-1, c}
+  def next_location({r, c}, :down), do: {r+1, c}
+  def next_location({r, c}, :left), do: {r, c-1}
+  def next_location({r, c}, :right), do: {r, c+1}
+
+  def next_direction(:up), do: :right
+  def next_direction(:right), do: :down
+  def next_direction(:down), do: :left
+  def next_direction(:left), do: :up
+
+  def value_at(maze, location) do
+    {r, c} = location
+    if r >= 0 && c >= 0 && r < length(maze) && c < length(Enum.at(maze, 0)) do
+      Enum.at(maze, r) |> Enum.at(c)
+    end
+  end
+
+  def replace_at(maze, location, val) do
+    {r, c} = location
+    new_row = Enum.at(maze, r) |> List.replace_at(c, val)
+    List.replace_at(maze, r, new_row)
+  end
+
+  def starting_location(maze) do
+    maze |> Enum.with_index |> Enum.find_value(fn {row, r} ->
+      Enum.find_value(row |> Enum.with_index, fn {val, c} ->
+        if val == "^", do: {r, c}
+      end)
+    end)
+  end
+end
+```
+
+```elixir
+test_maze = "....#.....
+.........#
+..........
+..#.......
+.......#..
+..........
+.#..^.....
+........#.
+#.........
+......#..."
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+
+{_, visited} = Maze.traverse(test_maze, Maze.starting_location(test_maze), :up, MapSet.new())
+MapSet.size(visited)
+```
+
+```elixir
+maze = 
+  "c:/Users/slims/Downloads/day_6_maze.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.map(&String.graphemes/1)
+
+{_, visited} = Maze.traverse(maze, Maze.starting_location(maze), :up, MapSet.new())
+MapSet.size(visited)
+```
+
+## Part 2
+
+```elixir
+defmodule MazeLoop do
+  def find_all_loops(maze) do
+    starting_loc = Maze.starting_location(maze)
+    {_, visited} = Maze.traverse(maze, starting_loc, :up, MapSet.new())
+    visited |> MapSet.delete(starting_loc) |> MapSet.to_list
+      |> Enum.reduce([], fn obstruction_loc, acc ->
+        IO.inspect(obstruction_loc)
+        new_maze = Maze.replace_at(maze, obstruction_loc, "#")
+        case find_loop(new_maze, starting_loc, :up, %{}) do
+          true -> acc ++ [obstruction_loc]
+          false -> acc
+        end
+      end)
+  end
+  
+  def find_loop(maze, location, direction, visited) do
+    existing_set = Map.get(visited, location, MapSet.new)
+    
+    cond do
+      MapSet.member?(existing_set, direction) -> true # found loop
+      true ->
+        visited = Map.put(visited, location, MapSet.put(existing_set, direction))
+        next_loc = Maze.next_location(location, direction)
+        next_spot = Maze.value_at(maze, next_loc)
+        case next_spot do
+          "." -> find_loop(maze, next_loc, direction, visited)
+          "^" -> find_loop(maze, next_loc, direction, visited)
+          "#" -> find_loop(maze, location, Maze.next_direction(direction), visited)
+          nil -> false
+        end
+    end
+  end
+end
+```
+
+```elixir
+test_maze_2 = "....#.....
+.........#
+..........
+..#.......
+.......#..
+..........
+.#.#^.....
+........#.
+#.........
+......#..."
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+
+MazeLoop.find_loop(test_maze_2, Maze.starting_location(test_maze_2), :up, %{})
+```
+
+```elixir
+MazeLoop.find_all_loops(test_maze)
+```
+
+```elixir
+maze = 
+  "c:/Users/slims/Downloads/day_6_maze.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.map(&String.graphemes/1)
+
+MazeLoop.find_all_loops(maze) |> length
+```

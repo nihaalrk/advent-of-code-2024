@@ -1,0 +1,107 @@
+# Day 5
+
+```elixir
+Mix.install([
+  {:nimble_csv, "~> 1.2"}
+])
+```
+
+## Part 1
+
+```elixir
+NimbleCSV.define(PageParser, separator: "|", escape: "\"")
+NimbleCSV.define(UpdateParser, separator: ",", escape: "\"")
+```
+
+```elixir
+page_rules =
+  "c:/Users/slims/Downloads/day_5_pages.txt"
+  |> File.stream!
+  |> PageParser.parse_stream(skip_headers: false)
+  |> Enum.map(fn [str1, str2] -> [String.to_integer(str1), String.to_integer(str2)] end)
+  |> Enum.group_by(&(Enum.at(&1, 0)), &(Enum.at(&1, 1)))
+  |> Enum.into(%{}, fn {k, v} -> {k, MapSet.new(v)} end)
+```
+
+```elixir
+updates =
+  "c:/Users/slims/Downloads/day_5_updates.txt"
+  |> File.stream!
+  |> UpdateParser.parse_stream(skip_headers: false)
+  |> Enum.map(fn updates -> Enum.map(updates, &String.to_integer/1) end)
+```
+
+```elixir
+defmodule UpdateChecker do
+  def check_update(update, page_rules) do
+    case update_is_valid(update, [], page_rules) do
+      true -> middle_page(update)
+      _ -> 0
+    end
+  end
+
+  def check_update_v2(update, page_rules) do
+    case update_is_valid(update, [], page_rules) do
+      true -> 0
+      _ -> fix_update(update, page_rules, 0) |> middle_page
+    end
+  end
+  
+  def update_is_valid(next_pages, _, _) when next_pages == [], do: true
+  def update_is_valid(next_pages, prev_pages, page_rules) do
+    [page | rest] = next_pages
+    !bad_page(prev_pages, Map.get(page_rules, page)) &&
+      update_is_valid(rest, prev_pages ++ [page], page_rules)
+  end
+
+  def bad_page(_, restricted_pages) when restricted_pages == nil, do: nil
+  def bad_page(prev_pages, restricted_pages) do
+    Enum.find_value(prev_pages |> Enum.with_index, fn {page, index} ->
+      if MapSet.member?(restricted_pages, page), do: index
+    end)
+  end
+  
+  def middle_page(update) do
+    index = (length(update)-1)/ 2
+    Enum.at(update, trunc(index))
+  end
+
+  def fix_update(update, _page_rules, index) when index >= length(update), do: update
+  def fix_update(update, page_rules, index) do
+    page = Enum.at(update, index)
+    prev_pages = Enum.slice(update, 0..index)
+    insert_index = bad_page(prev_pages, Map.get(page_rules, page))
+    case insert_index do
+      nil -> fix_update(update, page_rules, index + 1)
+      _ ->
+        new_update = update |> List.delete_at(index) |> List.insert_at(insert_index, page)
+        fix_update(new_update, page_rules, index + 1)
+    end
+  end
+end
+```
+
+```elixir
+Enum.reduce(updates, 0, fn update, acc ->
+  UpdateChecker.check_update(update, page_rules) + acc
+end)
+```
+
+## Part 2
+
+```elixir
+other_rules = %{
+  47 => MapSet.new([53, 13, 61, 29]),
+  97 => MapSet.new([13, 61, 47, 29, 53, 75]),
+  75 => MapSet.new([29, 53, 47, 61, 13]),
+  29 => MapSet.new([13])
+}
+
+UpdateChecker.fix_update([97,13,75,29,47], other_rules, 0)
+```
+
+```elixir
+Enum.reduce(updates, 0, fn update, acc ->
+  UpdateChecker.check_update_v2(update, page_rules) + acc
+end)
+```

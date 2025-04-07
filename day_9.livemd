@@ -1,0 +1,154 @@
+# Day 9
+
+## Part 1
+
+```elixir
+defmodule Disk do
+  def run(disk_str) do
+    read_disk_map(disk_str) |> compact_disk |> calculate_checksum
+  end
+
+  def calculate_checksum(disk) do
+    disk |> Enum.with_index |> Enum.reduce(0, fn {x, i}, acc -> x * i + acc end)
+  end
+  
+  def compact_disk(disk, acc \\ [])
+  def compact_disk([], acc), do: acc
+  def compact_disk([first | rest], acc) do
+    case first do
+      nil ->
+        case remove_last_file_block(rest) do
+          nil -> acc
+          {last, new_rest} -> compact_disk(new_rest, acc ++ [last])
+        end
+      _ -> compact_disk(rest, acc ++ [first])
+    end
+  end
+
+  def remove_last_file_block([]), do: nil
+  def remove_last_file_block(disk) do
+    [last | reversed_rest] = Enum.reverse(disk)
+    rest = Enum.reverse(reversed_rest)
+    case last do
+      nil -> remove_last_file_block(rest)
+      _ -> {last, rest}
+    end
+  end
+  
+  def read_disk_map(str) do
+    str |> String.graphemes |> read_disk_list(true, 0, [])
+  end
+
+  def read_disk_list([], _, _, acc), do: acc
+  def read_disk_list([num_str | rest], is_file, file_id, acc) do
+    num = num_str |> String.to_integer
+    case is_file do
+      true -> read_disk_list(rest, false, file_id+1, add_to_disk(file_id, num, acc))
+      false -> read_disk_list(rest, true, file_id, add_to_disk(nil, num, acc))
+    end
+  end
+
+  def add_to_disk(_, num_times, disk) when num_times < 1, do: disk
+  def add_to_disk(val, num_times, disk) do
+    disk ++ (0..num_times-1 |> Enum.map(fn _ -> val end))
+  end
+end
+```
+
+```elixir
+Disk.run("2333133121414131402")
+```
+
+```elixir
+"c:/Users/slims/Downloads/day_9_disk.txt"
+|> File.read! 
+|> String.slice(0..-2//1) # drop newline at end
+|> Disk.run
+```
+
+## Part 2
+
+```elixir
+defmodule DiskV2 do
+  def run(disk_str) do
+    read_disk_map(disk_str) |> compact_disk |> calculate_checksum
+  end
+
+  def calculate_checksum(file_locations) do
+    file_locations |> Enum.reduce(0, fn {file_id, file_size, file_index}, acc ->
+      min_val = file_id * file_index
+      max_val = file_id * (file_index + file_size - 1)
+      trunc(((min_val + max_val) / 2) * file_size) + acc
+    end)
+  end
+
+  def compact_disk({[], _}), do: []
+  def compact_disk({[file_data | rest_files], empty_locations}) do
+    {new_file_data, new_empty_locations} = move_file_block(file_data, empty_locations)
+    new_rest_files = compact_disk({rest_files, new_empty_locations})
+    [new_file_data | new_rest_files]
+  end
+
+  def move_file_block(file_data, []), do: {file_data, []}
+  def move_file_block({file_id, file_size, file_index}, [{empty_size, empty_index} | rest_empty]) do
+    cond do
+      empty_index > file_index -> # no empty spots to the left, skip
+        {{file_id, file_size, file_index}, [{empty_size, empty_index} | rest_empty]}
+      file_size == empty_size -> # move file and get rid of empty location
+        {{file_id, file_size, empty_index}, rest_empty}
+      file_size < empty_size -> # move file and keep track of remaining space in empty location
+        {{file_id, file_size, empty_index},
+         [{empty_size - file_size, empty_index + file_size} | rest_empty]}
+      true ->
+        {new_file_data, new_rest_empty_data} =
+          move_file_block({file_id, file_size, file_index}, rest_empty)
+        {new_file_data, [{empty_size, empty_index} | new_rest_empty_data]}
+    end
+  end
+
+  def read_disk_map(str) do
+    str |> String.graphemes |> read_disk_list
+  end
+
+  # acc: {file_locations, empty_locations}
+  # - file_locations in form [{file id, size, starting_index}, ...] sorted desc
+  # - empty_locations in form [{size, starting_index}, ...] sorted asc
+  def read_disk_list(list, is_file \\ true, file_id \\ 0, curr_index \\ 0, acc \\ {[], []})
+  def read_disk_list([], _, _, _, acc), do: acc
+  def read_disk_list([num_str | rest], is_file, file_id, curr_index, acc) do
+    num = num_str |> String.to_integer
+    case is_file do
+      true ->
+        read_disk_list(rest, false, file_id+1, curr_index + num,
+                       add_to_disk(file_id, num, curr_index, acc))
+      false ->
+        read_disk_list(rest, true, file_id, curr_index + num,
+                       add_to_disk(nil, num, curr_index, acc))
+    end
+  end
+
+  def add_to_disk(_, num_times, _, acc) when num_times < 1, do: acc
+  def add_to_disk(val, num_times, curr_index, {files, empties}) do
+    case val do
+      nil -> {files, empties ++ [{num_times, curr_index}]}
+      _ -> {[{val, num_times, curr_index} | files], empties}
+    end
+  end
+end
+```
+
+```elixir
+{file_data, empty_data} = DiskV2.read_disk_map("2333133121414131402")
+```
+
+```elixir
+DiskV2.run("2333133121414131402")
+```
+
+```elixir
+disk_str =
+  "c:/Users/slims/Downloads/day_9_disk.txt"
+  |> File.read! 
+  |> String.slice(0..-2//1) # drop newline at end
+  |> DiskV2.run
+```

@@ -1,0 +1,72 @@
+# Day 11
+
+## Part 1
+
+```elixir
+defmodule Stones do
+  def run(stones, num_blinks) do
+    init_cache()
+    Enum.reduce(stones, 0, fn stone, acc ->
+      recursive_transform(stone, num_blinks) + acc
+    end)
+  end
+
+  def recursive_transform(_stone, 0), do: 1
+  def recursive_transform(stone, num_blinks) do
+    case :ets.lookup(:stones_cache, {stone, num_blinks}) do
+      [{_, result}] -> result
+      [] ->
+        transform_stone(stone)
+        |> Enum.reduce(0, fn next_stone, acc ->
+          recursive_transform(next_stone, num_blinks - 1) + acc
+        end)
+        |> tap(fn result ->
+          :ets.insert(:stones_cache, {{stone, num_blinks}, result})
+        end)
+    end
+  end
+
+  def transform_stone(0), do: [1]
+  def transform_stone(stone) do
+    digits = stone |> Integer.digits
+    cond do
+      length(digits) |> rem(2) == 0 ->
+        {digits1, digits2} = digits |> Enum.split(trunc(length(digits) / 2))
+        [digits1, digits2] |> Enum.map(fn list ->
+          list |> Enum.join("") |> String.to_integer
+        end)
+      true -> [stone * 2024]
+    end
+  end
+
+  def init_cache do
+    if :ets.whereis(:stones_cache) != :undefined do
+      :ets.delete(:stones_cache)
+    end
+
+    :ets.new(:stones_cache, [:set, :public, :named_table])
+  end
+end
+```
+
+```elixir
+Stones.run([0], 25)
+```
+
+```elixir
+Stones.run([125, 17], 25)
+```
+
+```elixir
+input = [0, 37551, 469, 63, 1, 791606, 2065, 9983586]
+```
+
+```elixir
+Stones.run(input, 25)
+```
+
+## Part 2
+
+```elixir
+Stones.run(input, 75)
+```

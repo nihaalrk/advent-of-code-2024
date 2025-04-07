@@ -1,0 +1,128 @@
+# Day 10
+
+## Part 1
+
+```elixir
+defmodule TopographicMap do
+  def total_score(map) do
+    {coord_map, trailhead_list} = read_map(map)
+    Enum.reduce(trailhead_list, 0, fn trailhead, acc ->
+      (trailhead_summits(coord_map, trailhead) |> MapSet.size) + acc
+    end)
+  end
+  
+  def trailhead_summits(coord_map, coords, acc \\ MapSet.new)
+  def trailhead_summits(coord_map, {r, c}, acc) do
+    value = coord_map[{r, c}]
+    case value do
+      9 -> MapSet.put(acc, {r, c})
+      _ ->
+        valid_moves(coord_map, {r, c}) |> Enum.reduce(acc, fn next_coords, sub_acc ->
+          trailhead_summits(coord_map, next_coords) |> MapSet.union(sub_acc)
+        end)
+    end
+  end
+
+  # returns {coord_map, trailhead_list}
+  # - coord_map is a map of all coordinates to their values
+  # - trailheads is a list of all trailhead coordinates
+  def read_map(map) do
+    map |> Enum.with_index |> Enum.reduce({%{}, []}, fn {row, r}, {acc_map, acc_list} ->
+      row |> Enum.with_index
+      |> Enum.reduce({acc_map, acc_list}, fn {value_str, c}, {sub_acc_map, sub_acc_list} ->
+        coords = {r, c}
+        value = value_str |> String.to_integer
+        new_map = Map.put(sub_acc_map, coords, value)
+        case value do
+          0 -> {new_map, [coords | sub_acc_list]}
+          _ -> {new_map, sub_acc_list}
+        end
+      end)
+    end)
+  end
+
+  def valid_moves(coord_map, {r, c}) do
+    [{r+1, c}, {r-1, c}, {r, c+1}, {r, c-1}] |> Enum.filter(fn next_coords ->
+      is_valid_step(coord_map, coord_map[{r, c}], next_coords)
+    end)
+  end
+
+  def is_valid_step(coord_map, prev_value, {r, c}) do
+    cond do
+      !Map.has_key?(coord_map, {r, c}) -> false
+      coord_map[{r, c}] != prev_value + 1 -> false
+      true -> true
+    end
+  end
+end
+```
+
+```elixir
+test_map = "89010123
+78121874
+87430965
+96549874
+45678903
+32019012
+01329801
+10456732"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+
+{coord_map, trailhead_list} = TopographicMap.read_map(test_map)
+```
+
+```elixir
+TopographicMap.total_score(test_map)
+```
+
+```elixir
+map = "c:/Users/slims/Downloads/day_10_map.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.drop(-1) # empty line at end of file
+  |> Enum.map(&String.graphemes/1)
+```
+
+```elixir
+TopographicMap.total_score(map)
+```
+
+## Part 2
+
+```elixir
+defmodule TopographicMapV2 do
+  def total_rating(map) do
+    {coord_map, trailhead_list} = TopographicMap.read_map(map)
+    Enum.reduce(trailhead_list, 0, fn trailhead, acc ->
+      trailhead_rating(coord_map, trailhead) + acc
+    end)
+  end
+  
+  def trailhead_rating(coord_map, coords, acc \\ 0)
+  def trailhead_rating(coord_map, {r, c}, acc) do
+    value = coord_map[{r, c}]
+    case value do
+      9 -> acc + 1
+      _ ->
+        TopographicMap.valid_moves(coord_map, {r, c})
+        |> Enum.reduce(acc, fn next_coords, sub_acc ->
+          trailhead_rating(coord_map, next_coords) + sub_acc
+        end)
+    end
+  end
+end
+```
+
+```elixir
+{coord_map, trailhead_list} = TopographicMap.read_map(test_map)
+TopographicMapV2.trailhead_rating(coord_map, {0, 2})
+```
+
+```elixir
+TopographicMapV2.total_rating(test_map)
+```
+
+```elixir
+TopographicMapV2.total_rating(map)
+```

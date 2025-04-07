@@ -1,0 +1,259 @@
+# Day 12
+
+## Part 1
+
+```elixir
+defmodule Garden do
+  def explore_all(garden_list) do
+    garden_map = read_garden(garden_list)
+    max_r = length(garden_list) - 1
+    max_c = length(Enum.at(garden_list, 0)) - 1
+    init_cache()
+
+    0..max_r |> Enum.reduce(0, fn r, acc ->
+      0..max_c |> Enum.reduce(acc, fn c, sub_acc ->
+        {area, perimeter} = explore_region(garden_map, {r, c})
+        area * perimeter + sub_acc
+      end)
+    end)
+  end
+  
+  # garden stored as a map of {r, c} => value
+  # returns {area, perimeter}
+  def explore_region(garden, {r, c}) do
+    case :ets.lookup(:visited_cache, {r, c}) do
+      [{_key, _value}] -> {0, 0}
+      [] ->
+        :ets.insert(:visited_cache, {{r, c}, true})
+        plant = garden[{r, c}]
+        next_locations = [{r+1, c}, {r-1, c}, {r, c+1}, {r, c-1}]
+        acc_start = {1, 0} # area is 1 for current location
+        
+        Enum.reduce(next_locations, acc_start, fn next_loc, {acc_area, acc_perimeter} ->
+          case garden[next_loc] do
+            ^plant -> explore_region(garden, next_loc) |> add_tuples({acc_area, acc_perimeter})
+            _ -> {acc_area, acc_perimeter+1}
+          end
+        end) 
+    end
+  end
+
+  def read_garden(garden_list) do
+    garden_list |> Enum.with_index |> Enum.reduce(%{}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, sub_acc ->
+        Map.put(sub_acc, {r, c}, value)
+      end)
+    end)
+  end
+
+  def add_tuples({x1, y1}, {x2, y2}), do: {x1+x2, y1+y2}
+  
+  def init_cache do
+    if :ets.whereis(:visited_cache) != :undefined do
+      :ets.delete(:visited_cache)
+    end
+
+    :ets.new(:visited_cache, [:set, :public, :named_table])
+  end
+end
+```
+
+```elixir
+test_garden = "RRRRIICCFF
+RRRRIICCCF
+VVRRRCCFFF
+VVRCCCJFFF
+VVVVCJJCFE
+VVIVCCJJEE
+VVIIICJJEE
+MIIIIIJJEE
+MIIISIJEEE
+MMMISSJEEE"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+```
+
+```elixir
+Garden.explore_all(test_garden)
+```
+
+```elixir
+garden =
+  "c:/Users/slims/Downloads/day_12_garden.txt"
+  |> File.read!
+  |> String.split("\n")
+  |> Enum.drop(-1) # drop empty row
+  |> Enum.map(&String.graphemes/1)
+```
+
+```elixir
+Garden.explore_all(garden)
+```
+
+## Part 2
+
+```elixir
+defmodule GardenV2 do
+  def explore_all(garden_list) do
+    garden_map = read_garden(garden_list)
+    max_r = length(garden_list) - 1
+    max_c = length(Enum.at(garden_list, 0)) - 1
+    init_cache()
+
+    0..max_r |> Enum.reduce(0, fn r, acc ->
+      0..max_c |> Enum.reduce(acc, fn c, sub_acc ->
+        {area, perimeter_map_h, perimeter_map_v} = explore_region(garden_map, {r, c})
+        side_count = count_sides(perimeter_map_h) + count_sides(perimeter_map_v)
+        area * side_count + sub_acc
+      end)
+    end)
+  end
+  
+  # garden stored as a map of {r, c} => value
+  # returns {area, horizontal_perimeter_map, vertical_perimeter_map}
+  def explore_region(garden, {r, c}) do
+    case :ets.lookup(:visited_cache, {r, c}) do
+      [{_key, _value}] -> {0, %{}, %{}}
+      [] ->
+        :ets.insert(:visited_cache, {{r, c}, true})
+        plant = garden[{r, c}]
+        acc_start = {1, %{}, %{}} # area is 1 for current location
+
+        # note that horizontal locations add to vertical perimeter map and vice versa
+        
+        # also note that dividing by 4 is important for perimeter placement - the fence
+        # needs to be placed in a specific spot relative to current location, otherwise
+        # it will overlap / coincide with other fences that it should not be connected to
+        new_acc_start =
+          Enum.reduce([1, -1], acc_start, fn c_diff, acc ->
+            next_loc = {r, c + c_diff}
+            case garden[next_loc] do
+              ^plant -> explore_region(garden, next_loc) |> add_tuples(acc)
+              _ ->
+                {acc_area, acc_perimeter_h, acc_perimeter_v} = acc
+                {v, k} = {r, c + c_diff/4} # key is column index, value is row index
+                {acc_area, acc_perimeter_h, add_to_perimeter_map(acc_perimeter_v, k, v)}
+            end
+          end)
+        
+        Enum.reduce([1, -1], new_acc_start, fn r_diff, acc ->
+          next_loc = {r + r_diff, c}
+          case garden[next_loc] do
+            ^plant -> explore_region(garden, next_loc) |> add_tuples(acc)
+            _ ->
+              {acc_area, acc_perimeter_h, acc_perimeter_v} = acc
+              {k, v} = {r + r_diff/4, c} # key is row index, value is column index
+              {acc_area, add_to_perimeter_map(acc_perimeter_h, k, v), acc_perimeter_v}
+          end
+        end)
+    end
+  end
+
+  def read_garden(garden_list) do
+    garden_list |> Enum.with_index |> Enum.reduce(%{}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, sub_acc ->
+        Map.put(sub_acc, {r, c}, value)
+      end)
+    end)
+  end
+
+  def add_to_perimeter_map(perimeter_map, k, v) do
+    {min, max, set} = Map.get(perimeter_map, k, {v, v, MapSet.new})
+    Map.put(perimeter_map, k, {min(min, v), max(max, v), MapSet.put(set, v)})
+  end
+
+  # takes in either horizontal nodes or vertical nodes
+  # horizontal: row_index => {min_c, max_c, set of column indices}
+  # vertical: col_index => {min_r, max_r, set of row indices}
+  def count_sides(perimeter_node_map) do
+    Enum.reduce(perimeter_node_map, 0, fn {_k, {min, max, set}}, acc ->
+      cond do
+        max - min + 1 == MapSet.size(set) -> 1 # all nodes connected 
+        true ->
+          # everytime we switch from in set to out of set, add 1 to side count
+          {side_count, _} =
+            (min+1)..(max-1) |> Enum.reduce({1, true}, fn val, {acc_sides, last_in_set} ->
+              member = MapSet.member?(set, val)
+              cond do
+                last_in_set && !member -> {acc_sides + 1, member}
+                true -> {acc_sides, member}
+              end
+            end)
+          side_count
+      end + acc 
+    end)
+  end
+
+  def add_tuples({x1, y1, z1}, {x2, y2, z2}) do
+    {x1+x2, Map.merge(y1, y2, fn _k, {min1, max1, set1}, {min2, max2, set2} ->
+      {min(min1, min2), max(max1, max2), MapSet.union(set1, set2)}
+      end), Map.merge(z1, z2, fn _k, {min1, max1, set1}, {min2, max2, set2} ->
+      {min(min1, min2), max(max1, max2), MapSet.union(set1, set2)}
+      end)}
+  end
+  
+  def init_cache do
+    if :ets.whereis(:visited_cache) != :undefined do
+      :ets.delete(:visited_cache)
+    end
+
+    :ets.new(:visited_cache, [:set, :public, :named_table])
+  end
+end
+```
+
+```elixir
+test_garden
+```
+
+```elixir
+GardenV2.explore_all(test_garden)
+```
+
+```elixir
+"AAAA
+BBCD
+BBCC
+EEEC"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+|> GardenV2.explore_all # 80
+```
+
+```elixir
+"OOOOO
+OXOXO
+OOOOO
+OXOXO
+OOOOO"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+|> GardenV2.explore_all # 436
+```
+
+```elixir
+"EEEEE
+EXXXX
+EEEEE
+EXXXX
+EEEEE"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+|> GardenV2.explore_all # 236
+```
+
+```elixir
+"AAAAAA
+AAABBA
+AAABBA
+ABBAAA
+ABBAAA
+AAAAAA"
+|> String.split("\r\n")
+|> Enum.map(&String.graphemes/1)
+|> GardenV2.explore_all # 368
+```
+
+```elixir
+GardenV2.explore_all(garden)
+```

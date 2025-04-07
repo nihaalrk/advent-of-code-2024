@@ -1,0 +1,78 @@
+# Day 2
+
+```elixir
+Mix.install([
+  {:nimble_csv, "~> 1.2"}
+])
+```
+
+## Part 1
+
+```elixir
+NimbleCSV.define(MyParser, separator: " ", escape: "\"")
+```
+
+```elixir
+reports =
+  "c:/Users/slims/Downloads/day_2_reports.txt"
+  |> File.stream!
+  |> MyParser.parse_stream(skip_headers: false)
+  |> Enum.map(fn report -> Enum.map(report, &String.to_integer/1) end)
+```
+
+```elixir
+defmodule Report do
+  def is_safe(report) when length(report) < 1, do: true
+  
+  def is_safe(report) when length(report) > 1 do
+    is_increasing = Enum.at(report, 1) - Enum.at(report, 0) > 0
+    level_is_safe(report, 1, is_increasing)
+  end
+  
+  def level_is_safe(report, index, _is_increasing) when index >= length(report), do: true
+  
+  def level_is_safe(report, index, is_increasing) do
+    diff = Enum.at(report, index) - Enum.at(report, index - 1)
+    cond do
+      diff > 0 && diff <= 3 && is_increasing -> level_is_safe(report, index + 1, is_increasing)
+      diff < 0 && diff >= -3 && !is_increasing -> level_is_safe(report, index + 1, is_increasing)
+      true -> false
+    end
+  end
+end
+```
+
+```elixir
+Enum.reduce(reports, 0, fn report, acc ->
+  cond do
+    Report.is_safe(report) -> acc + 1
+    true -> acc
+  end
+end)
+```
+
+## Part 2
+
+```elixir
+defmodule ProblemDampener do
+  def report_is_safe(report) do
+    Report.is_safe(report) || modified_report_is_safe(report, 0)
+  end
+
+  def modified_report_is_safe(report, index) when index > length(report), do: false
+
+  def modified_report_is_safe(report, index) do
+    (List.delete_at(report, index) |> Report.is_safe) ||
+      modified_report_is_safe(report, index + 1)
+  end
+end
+```
+
+```elixir
+Enum.reduce(reports, 0, fn report, acc ->
+  cond do
+    ProblemDampener.report_is_safe(report) -> acc + 1
+    true -> acc
+  end
+end)
+```
