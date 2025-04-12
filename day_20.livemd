@@ -1,0 +1,195 @@
+# Day 20
+
+## Part 1
+
+```elixir
+defmodule RaceCondition do
+  def run(input_str, newline, time_save) do
+    {race_map, path} = run_a_star(input_str, newline)
+    path_map = Map.new(path) # map each location in the path to its score
+    Enum.reduce(path, 0, fn {{node_r, node_c}, node_score}, acc ->
+      # list of {neighbor, node we could jump to if we cheated}
+      [
+        {{node_r-1, node_c}, {node_r-2, node_c}},
+        {{node_r+1, node_c}, {node_r+2, node_c}},
+        {{node_r, node_c-1}, {node_r, node_c-2}},
+        {{node_r, node_c+1}, {node_r, node_c+2}}
+      ]
+      |> Enum.filter(fn {neighbor_loc, new_node_loc} ->
+        race_map[neighbor_loc] == "#" &&
+          path_map[new_node_loc] &&
+          (path_map[new_node_loc] - node_score) >= time_save + 2
+      end)
+      |> Enum.count()
+      |> Kernel.+(acc)
+    end)
+  end
+  
+  def run_a_star(input_str, newline) do
+    {start_loc, end_loc, race_map} = read_input(input_str, newline)
+    init_caches()
+    end_score = recur_a_star(race_map, %{start_loc => 0}, end_loc)
+    path = fetch_path(end_loc, end_score)
+    {race_map, path}
+  end
+
+  def recur_a_star(race_map, nodes_to_explore, end_loc) do
+    case find_best_node(nodes_to_explore, end_loc) do
+      nil -> nil
+        
+      {{node_loc, node_score} = node, rest_to_explore} ->
+        cond do
+          node_loc == end_loc -> node_score
+    
+          true ->
+            # add qualifying neighbors to nodes_to_explore
+            new_nodes_to_explore =
+              neighbors(race_map, node)
+              |> Enum.reduce(rest_to_explore, fn {neighbor_loc, neighbor_score}, acc_explore ->
+                cond do
+                  lte(lookup_visited(neighbor_loc), neighbor_score) ->
+                    acc_explore # skip
+    
+                  lte(rest_to_explore[neighbor_loc], neighbor_score) ->
+                    acc_explore # skip
+    
+                  true ->
+                    mark_path(neighbor_loc, node_loc)
+                    acc_explore |> Map.put(neighbor_loc, neighbor_score)
+                end
+              end)
+            mark_visited(node)
+            recur_a_star(race_map, new_nodes_to_explore, end_loc)
+        end
+    end
+  end
+
+  def find_best_node(nodes, dest) do
+    best_node =
+      Enum.reduce(nodes, nil, fn curr, best ->
+        cond do
+          best == nil -> curr
+          heuristic(curr, dest) < heuristic(best, dest) -> curr
+          true -> best
+        end
+      end)
+    case best_node do
+      nil -> nil
+      
+      {best_node_key, _} ->
+        new_nodes = nodes |> Map.delete(best_node_key)
+        {best_node, new_nodes}
+    end
+  end
+
+  def heuristic({{node_r, node_c}, node_score}, {dest_r, dest_c}) do
+    node_score + abs(dest_r - node_r) + abs(dest_c - node_c)
+  end
+
+  def neighbors(race_map, {{curr_r, curr_c}, curr_score}) do
+    [
+      {{curr_r-1, curr_c}, curr_score + 1},
+      {{curr_r+1, curr_c}, curr_score + 1},
+      {{curr_r, curr_c-1}, curr_score + 1},
+      {{curr_r, curr_c+1}, curr_score + 1}
+    ]
+    |> Enum.filter(fn {loc, _score} ->
+      Enum.any?([".", "S", "E"], fn x -> x == Map.get(race_map, loc) end)
+    end)
+  end
+
+  def lookup_visited(node) do
+    case :ets.lookup(:visited_cache, node) do
+      [{_key, value}] -> value
+      _ -> nil
+    end
+  end
+
+  def mark_visited({node_loc, node_score}) do
+    :ets.insert(:visited_cache, {node_loc, node_score})
+  end
+
+  def mark_path(child_node_loc, parent_node_loc) do
+    :ets.insert(:path_cache, {child_node_loc, parent_node_loc})
+  end
+
+  def fetch_path(node_loc, score, output \\ []) do
+    case :ets.lookup(:path_cache, node_loc) do
+      [{_key, prev_node_loc}] ->
+        fetch_path(prev_node_loc, score - 1, [{node_loc, score} | output])
+      
+      _ -> [{node_loc, score} | output]
+    end
+  end
+
+  # returns {start, end, map}
+  # map in form %{coords => "#" or "." or "S" or "E"}
+  def read_input(input_str, newline) do
+    input_str
+    |> String.split(newline, trim: true)
+    |> Enum.map(&String.graphemes/1)
+    |> Enum.with_index
+    |> Enum.reduce({nil, nil, %{}}, fn {row, r}, acc ->
+      row |> Enum.with_index |> Enum.reduce(acc, fn {value, c}, {start_loc, end_loc, acc_map} ->
+        {(if value == "S", do: {r, c}) || start_loc,
+         (if value == "E", do: {r, c}) || end_loc,
+         Map.put(acc_map, {r, c}, value)}
+      end)
+    end)
+  end
+
+  def print_path(input_str, newline, path) do
+    input_2d_list =
+      input_str
+      |> String.split(newline, trim: true)
+      |> Enum.map(&String.graphemes/1)
+
+    input_2d_list |> Enum.with_index |> Enum.map(fn {row, r} ->
+      row |> Enum.with_index |> Enum.map(fn {value, c} ->
+        case value == "." && Enum.member?(path, {r, c}) do
+          true -> "O"
+          false -> value
+        end
+      end)
+    end)
+  end
+
+  def init_caches do
+    if :ets.whereis(:visited_cache) != :undefined do
+      :ets.delete(:visited_cache)
+    end
+
+    :ets.new(:visited_cache, [:set, :public, :named_table])
+
+    if :ets.whereis(:path_cache) != :undefined do
+      :ets.delete(:path_cache)
+    end
+
+    :ets.new(:path_cache, [:set, :public, :named_table])
+  end
+
+  def lte(x, y), do: x && x <= y
+end
+```
+
+```elixir
+"###############
+#...#...#.....#
+#.#.#.#.#.###.#
+#S#...#.#.#...#
+#######.#.#.###
+#######.#.#...#
+#######.#.###.#
+###..E#...#...#
+###.#######.###
+#...###...#...#
+#.#####.#.###.#
+#.#...#.#.#...#
+#.#.#.#.#.#.###
+#...#...#...###
+###############" |> RaceCondition.run("\n", 20)
+```
+
+```elixir
+
+```
